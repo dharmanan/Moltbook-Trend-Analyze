@@ -1,13 +1,13 @@
 # MoltBridge Agent — Automated Heartbeat
 # Full pipeline: scrape → analyze → report → publish → reply
-# Runs every 4 hours
+# Runs every 6 hours
 
 name: 🦞 MoltBridge Heartbeat
 
 on:
   schedule:
-    # Her 4 saatte bir (UTC)
-    - cron: '0 */4 * * *'
+    # Her 6 saatte bir (UTC)
+    - cron: '0 */6 * * *'
   workflow_dispatch:
     inputs:
       mode:

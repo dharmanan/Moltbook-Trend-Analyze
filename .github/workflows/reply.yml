@@ -1,11 +1,11 @@
 # MoltBridge Agent — Reply Cycle
-# Runs every 4 hours, offset by 30 minutes
+# Runs every 6 hours, offset by 31 minutes
 
 name: 🦞 MoltBridge Reply
 
 on:
   schedule:
-    - cron: '30 */4 * * *'
+    - cron: '31 */6 * * *'
   workflow_dispatch:
 
 jobs:
