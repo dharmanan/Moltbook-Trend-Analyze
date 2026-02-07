@@ -16,6 +16,13 @@ from utils import log, get_state, set_state
 
 import httpx
 
+# Load settings
+_settings_path = os.path.join(os.path.dirname(__file__), "..", "..", "config", "settings.json")
+with open(_settings_path, "r") as f:
+    _settings = json.load(f)
+
+REPORT_SUBMOLT = _settings.get("moltbook", {}).get("report_submolt", "agentintelligence")
+
 
 # ──────────────────────────────────────────────
 # Reply Templates
@@ -177,6 +184,15 @@ async def get_my_posts() -> list[dict]:
                 all_posts.extend(resp)
             elif resp and "posts" in resp:
                 all_posts.extend(resp["posts"])
+            await asyncio.sleep(1)
+
+        # Also scan report submolt feed (newest posts first)
+        if REPORT_SUBMOLT:
+            feed = await _get(client, f"/submolts/{REPORT_SUBMOLT}/feed", {"sort": "new", "limit": 50})
+            if feed and isinstance(feed, list):
+                all_posts.extend(feed)
+            elif feed and "posts" in feed:
+                all_posts.extend(feed["posts"])
             await asyncio.sleep(1)
 
         # Filter by author
