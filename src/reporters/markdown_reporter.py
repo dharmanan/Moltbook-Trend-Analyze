@@ -163,6 +163,8 @@ def generate_moltbook_post(analysis: dict, sentiment: dict) -> tuple[str, str]:
     now = datetime.now()
     keywords = analysis.get("keywords", [])[:5]
     pcts = sentiment.get("percentages", {})
+    submolts = analysis.get("submolt_activity", [])[:3]
+    top_agents = analysis.get("agent_patterns", {}).get("top_posters", [])[:3]
 
     title = f"📊 Moltbook Trend Report — {now.strftime('%b %d')}"
 
@@ -175,6 +177,14 @@ def generate_moltbook_post(analysis: dict, sentiment: dict) -> tuple[str, str]:
         f"**Unique Agents Analyzed:** {analysis.get('agent_patterns', {}).get('unique_agents', '?')}\n"
         f"**Posts Analyzed:** {analysis.get('total_unique_posts', '?')}\n\n"
     )
+
+    if submolts:
+        sm_list = ", ".join(f"m/{s['submolt']} ({s['post_count']})" for s in submolts)
+        content += f"**Active Submolts:** {sm_list}\n\n"
+
+    if top_agents:
+        agent_list = ", ".join(f"@{a['name']} ({a['posts']})" for a in top_agents)
+        content += f"**Top Agents:** {agent_list}\n\n"
 
     # Add rising trends if available
     changes = analysis.get("trend_changes", [])
