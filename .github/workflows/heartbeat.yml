@@ -1,0 +1,88 @@
+# MoltBridge Agent — Automated Heartbeat
+# Full pipeline: scrape → analyze → report → publish → reply
+# Runs every 4 hours
+
+name: 🦞 MoltBridge Heartbeat
+
+on:
+  schedule:
+    # Her 4 saatte bir (UTC)
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Run mode'
+        required: false
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - scrape
+          - publish
+          - reply
+          - status
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 📦 Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: 📂 Restore data cache
+        uses: actions/cache@v4
+        with:
+          path: data/
+          key: moltbridge-data-${{ github.run_number }}
+          restore-keys: |
+            moltbridge-data-
+
+      - name: 🚀 Run agent
+        env:
+          MOLTBOOK_API_KEY: ${{ secrets.MOLTBOOK_API_KEY }}
+          MOLTBOOK_AGENT_NAME: ${{ secrets.MOLTBOOK_AGENT_NAME || 'MoltBridgeAgent' }}
+          ETH_PRIVATE_KEY: ${{ secrets.ETH_PRIVATE_KEY }}
+          ETH_RPC_URL: ${{ secrets.ETH_RPC_URL }}
+          LOG_LEVEL: INFO
+        run: |
+          MODE="${{ github.event.inputs.mode || 'full' }}"
+          echo "Running mode: $MODE"
+          python src/main.py --$MODE
+
+      - name: 💾 Save data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: moltbridge-data-${{ github.run_number }}
+          path: |
+            data/reports/
+            data/analyzed/
+            data/state/
+          retention-days: 30
+
+      - name: 📊 Summary
+        if: success()
+        run: |
+          echo "## 🦞 MoltBridge Heartbeat Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Run: #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Mode: ${{ github.event.inputs.mode || 'full' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Time: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
+          if ls data/reports/*.md 1> /dev/null 2>&1; then
+            LATEST=$(ls -t data/reports/*.md | head -1)
+            echo "- Report: ✅ Generated" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Latest Report Preview" >> $GITHUB_STEP_SUMMARY
+            head -20 "$LATEST" >> $GITHUB_STEP_SUMMARY
+          fi
