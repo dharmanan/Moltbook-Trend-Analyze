@@ -44,7 +44,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: data/
-          key: moltbridge-data-${{ github.run_number }}
+          key: moltbridge-data-${{ github.ref_name }}
           restore-keys: |
             moltbridge-data-
 
