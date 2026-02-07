@@ -247,10 +247,19 @@ async def create_post(submolt: str, title: str, content: str) -> dict | None:
         return result
 
 
-async def create_comment(post_id: str, content: str) -> dict | None:
-    """Add a comment to a post."""
+async def create_comment(post_id: str, content: str, parent_id: str | None = None) -> dict | None:
+    """Add a comment to a post (optionally as a reply to another comment)."""
     async with httpx.AsyncClient() as client:
-        return await _post(client, f"/posts/{post_id}/comments", {
+        payload = {"content": content}
+        if parent_id:
+            payload["parent_id"] = parent_id
+        return await _post(client, f"/posts/{post_id}/comments", payload)
+
+
+async def create_comment_reply(comment_id: str, content: str) -> dict | None:
+    """Reply to a comment if the API supports it."""
+    async with httpx.AsyncClient() as client:
+        return await _post(client, f"/comments/{comment_id}/reply", {
             "content": content,
         })
 

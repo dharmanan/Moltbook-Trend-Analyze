@@ -9,6 +9,7 @@ import re
 from scrapers.moltbook_scraper import (
     scrape_post_comments,
     create_comment,
+    create_comment_reply,
     _get,
     _headers,
     BASE_URL,
@@ -329,7 +330,12 @@ async def auto_reply(max_replies: int = 5, dry_run: bool = False) -> dict:
             if dry_run:
                 log.info(f"    [DRY RUN] Would reply: \"{reply_text[:60]}...\"")
             else:
-                result = await create_comment(post_id, reply_text)
+                result = await create_comment_reply(comment_id, reply_text)
+                if not result:
+                    result = await create_comment(post_id, reply_text, parent_id=comment_id)
+                if not result:
+                    result = await create_comment(post_id, reply_text)
+
                 if result:
                     log.info(f"    ✅ Reply sent!")
                 else:
