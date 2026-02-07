@@ -109,8 +109,8 @@ DEFAULT_REPLY = (
 )
 
 
-def _match_pattern(comment_text: str) -> str:
-    """Match a comment to a reply pattern. Returns the best reply."""
+def _match_pattern(comment_text: str) -> tuple[str, str]:
+    """Match a comment to a reply pattern. Returns (reply, pattern_name)."""
     text_lower = comment_text.lower()
 
     best_match = None
@@ -123,9 +123,9 @@ def _match_pattern(comment_text: str) -> str:
             best_match = pattern
 
     if best_match and best_score >= 1:
-        return best_match["reply"]
+        return best_match["reply"], best_match["name"]
 
-    return DEFAULT_REPLY
+    return DEFAULT_REPLY, "default"
 
 
 def _should_reply(comment: dict, replied_ids: set, my_agent_name: str) -> bool:
@@ -142,9 +142,20 @@ def _should_reply(comment: dict, replied_ids: set, my_agent_name: str) -> bool:
     if author_name and author_name.lower() == my_agent_name.lower():
         return False
 
+    # Avoid obvious bots and auto-posters
+    if author_name and "bot" in author_name.lower():
+        return False
+
     # Don't reply to empty comments
     content = comment.get("content", "") or comment.get("body", "") or ""
-    if len(content.strip()) < 5:
+    if len(content.strip()) < 20:
+        return False
+
+    # Skip link-only or command-only comments
+    content_lower = content.strip().lower()
+    if content_lower.startswith("http://") or content_lower.startswith("https://"):
+        return False
+    if content_lower.startswith("!"):
         return False
 
     return True
@@ -226,6 +237,7 @@ async def auto_reply(max_replies: int = 5, dry_run: bool = False) -> dict:
 
     # Load previously replied comment IDs
     replied_ids = set(get_state("replied_comment_ids", []))
+    replied_signatures = set(get_state("replied_signatures", []))
 
     # Get our posts
     my_posts = await get_my_posts()
@@ -256,6 +268,9 @@ async def auto_reply(max_replies: int = 5, dry_run: bool = False) -> dict:
 
         await asyncio.sleep(1)
 
+        replied_authors = set()
+        used_templates = set()
+
         for comment in comments:
             if replies_sent >= max_replies:
                 break
@@ -269,7 +284,17 @@ async def auto_reply(max_replies: int = 5, dry_run: bool = False) -> dict:
             author_name = author.get("name") if isinstance(author, dict) else str(author)
 
             # Generate reply
-            reply_text = _match_pattern(comment_text)
+            reply_text, template_name = _match_pattern(comment_text)
+
+            # Avoid repeating same template or replying multiple times to same author per post
+            if template_name in used_templates:
+                continue
+            if author_name and author_name.lower() in replied_authors:
+                continue
+
+            signature = f"{post_id}:{author_name.lower() if author_name else 'unknown'}:{template_name}"
+            if signature in replied_signatures:
+                continue
 
             log.info(f"  → Replying to @{author_name}: \"{comment_text[:50]}...\"")
 
@@ -285,10 +310,15 @@ async def auto_reply(max_replies: int = 5, dry_run: bool = False) -> dict:
 
             # Track as replied
             replied_ids.add(comment_id)
+            replied_signatures.add(signature)
+            if author_name:
+                replied_authors.add(author_name.lower())
+            used_templates.add(template_name)
             replies_sent += 1
 
     # Save replied IDs
     set_state("replied_comment_ids", list(replied_ids)[-500:])  # Keep last 500
+    set_state("replied_signatures", list(replied_signatures)[-500:])
 
     summary = {
         "replies_sent": replies_sent,
