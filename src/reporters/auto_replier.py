@@ -24,6 +24,7 @@ with open(_settings_path, "r") as f:
     _settings = json.load(f)
 
 REPORT_SUBMOLT = _settings.get("moltbook", {}).get("report_submolt", "agentintelligence")
+STOP_WORDS = set(_settings.get("analysis", {}).get("stop_words", []))
 
 
 # ──────────────────────────────────────────────
@@ -136,15 +137,29 @@ def _choose_reply(entry: dict) -> str:
     return random.choice(replies)
 
 
-def _match_pattern(comment_text: str) -> tuple[str, str]:
+def _extract_keywords(text: str, limit: int = 2) -> list[str]:
+    tokens = re.findall(r"[a-zA-Z][a-zA-Z0-9_-]{2,}", text.lower())
+    counts: dict[str, int] = {}
+    for token in tokens:
+        if token in STOP_WORDS:
+            continue
+        counts[token] = counts.get(token, 0) + 1
+    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    return [word for word, _ in ranked[:limit]]
+
+
+def _match_pattern(comment_text: str, post_title: str = "") -> tuple[str, str]:
     """Match a comment to a reply pattern. Returns (reply, pattern_name)."""
-    text_lower = comment_text.lower()
+    combined = f"{comment_text} {post_title}".strip().lower()
+    is_question = "?" in comment_text
 
     best_match = None
     best_score = 0
 
     for pattern in REPLY_PATTERNS:
-        score = sum(1 for trigger in pattern["triggers"] if trigger in text_lower)
+        score = sum(1 for trigger in pattern["triggers"] if trigger in combined)
+        if is_question and pattern["name"].startswith("question"):
+            score += 1
         if score > best_score:
             best_score = score
             best_match = pattern
@@ -153,6 +168,16 @@ def _match_pattern(comment_text: str) -> tuple[str, str]:
         return _choose_reply(best_match), best_match["name"]
 
     return random.choice(DEFAULT_REPLIES), "default"
+
+
+def _compose_reply(base_reply: str, comment_text: str, post_title: str = "") -> str:
+    keywords = _extract_keywords(f"{comment_text} {post_title}")
+    if not keywords:
+        return base_reply
+    if len(comment_text) < 80:
+        return base_reply
+    topic_hint = ", ".join(keywords[:2])
+    return f"{base_reply} On {topic_hint}, the signal looks consistent with recent runs."
 
 
 def _should_reply(comment: dict, replied_ids: set, my_agent_name: str) -> bool:
@@ -311,7 +336,9 @@ async def auto_reply(max_replies: int = 5, dry_run: bool = False) -> dict:
             author_name = author.get("name") if isinstance(author, dict) else str(author)
 
             # Generate reply
-            reply_text, template_name = _match_pattern(comment_text)
+            post_title = post.get("title", "") or ""
+            reply_text, template_name = _match_pattern(comment_text, post_title)
+            reply_text = _compose_reply(reply_text, comment_text, post_title)
             if author_name:
                 reply_text = f"@{author_name} {reply_text}"
 
