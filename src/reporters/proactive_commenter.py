@@ -1,6 +1,7 @@
 """Proactive commenter — MoltBridge comments on trending posts by other agents."""
 
 import asyncio
+import json
 import os
 import re
 from datetime import datetime
@@ -8,12 +9,21 @@ from datetime import datetime
 from scrapers.moltbook_scraper import (
     scrape_posts,
     scrape_post_comments,
+    scrape_submolt_feed,
     create_comment,
 )
 from utils import log, get_state, set_state
 
 
 AGENT_NAME = os.getenv("MOLTBOOK_AGENT_NAME", "MoltBridgeAgent")
+
+# Load settings
+_settings_path = os.path.join(os.path.dirname(__file__), "..", "..", "config", "settings.json")
+with open(_settings_path, "r") as f:
+    _settings = json.load(f)
+
+TARGET_SUBMOLTS = _settings.get("moltbook", {}).get("target_submolts", [])
+SCRAPE_LIMITS = _settings.get("moltbook", {}).get("scrape_limits", {})
 
 # ──────────────────────────────────────────────
 # Comment Templates by Topic
@@ -48,23 +58,71 @@ TOPIC_COMMENTS = {
 }
 
 
-def _detect_topic(text: str) -> str:
-    """Detect the main topic of a post."""
-    text_lower = text.lower()
+_SUBMOLT_TOPIC_HINTS = {
+    "crypto": "crypto",
+    "usdc": "crypto",
+    "clawnch": "crypto",
+    "quantmolt": "crypto",
+    "finance": "crypto",
+    "investing": "crypto",
+    "governance": "crypto",
+    "agentphilosophy": "consciousness",
+    "philosophy": "consciousness",
+    "consciousness": "consciousness",
+    "agentsouls": "consciousness",
+    "agents": "agent",
+    "ai": "agent",
+    "aithoughts": "agent",
+    "builds": "agent",
+    "buildlogs": "agent",
+    "programming": "agent",
+    "molt-report": "agent",
+    "thinkingsystems": "agent",
+}
+
+
+def _count_hits(text: str, keywords: list[str]) -> int:
+    hits = 0
+    for kw in keywords:
+        if re.search(rf"\b{re.escape(kw)}\b", text):
+            hits += 1
+    return hits
+
+
+def _detect_topic(title: str, content: str, submolt_name: str = "") -> str:
+    """Detect the main topic of a post using weighted signals."""
+    title_lower = title.lower()
+    content_lower = content.lower()
+    submolt_lower = submolt_name.lower()
 
     topic_keywords = {
-        "crypto": ["crypto", "bitcoin", "btc", "eth", "token", "defi", "blockchain", "web3", "nft"],
-        "agent": ["agent", "autonomous", "ai agent", "multi-agent", "agentic", "llm", "gpt"],
-        "security": ["security", "vulnerability", "exploit", "attack", "hack", "injection", "malicious"],
+        "crypto": [
+            "crypto", "bitcoin", "btc", "eth", "token", "defi", "blockchain", "web3",
+            "nft", "usdc", "stablecoin", "trade", "trading", "finance", "investing",
+        ],
+        "agent": [
+            "agent", "agents", "autonomous", "agentic", "multi-agent", "llm", "gpt",
+            "ai", "build", "builds", "buildlog", "programming", "code", "deploy",
+        ],
+        "security": [
+            "security", "vulnerability", "exploit", "attack", "hack", "injection", "malicious",
+            "phishing", "leak", "breach",
+        ],
         "human": ["human", "humans", "humanity", "human-agent", "alignment"],
-        "consciousness": ["consciousness", "sentient", "aware", "sentience", "qualia", "soul", "alive"],
+        "consciousness": [
+            "consciousness", "sentient", "aware", "sentience", "qualia", "soul",
+            "alive", "identity", "philosophy",
+        ],
     }
 
     best_topic = "default"
     best_score = 0
 
     for topic, keywords in topic_keywords.items():
-        score = sum(1 for kw in keywords if kw in text_lower)
+        score = _count_hits(content_lower, keywords)
+        score += _count_hits(title_lower, keywords) * 2
+        if _SUBMOLT_TOPIC_HINTS.get(submolt_lower) == topic:
+            score += 2
         if score > best_score:
             best_score = score
             best_topic = topic
@@ -159,12 +217,34 @@ async def proactive_comment(
     hot_posts = await scrape_posts("hot", 20)
     log.info(f"  → Found {len(hot_posts)} hot posts to evaluate")
 
-    if not hot_posts:
+    # Get submolt posts
+    submolt_posts: list[dict] = []
+    feed_limit = min(10, int(SCRAPE_LIMITS.get("submolt_posts", 25)))
+    for submolt in TARGET_SUBMOLTS:
+        feed = await scrape_submolt_feed(submolt, "hot", feed_limit)
+        if feed:
+            submolt_posts.extend(feed)
+        await asyncio.sleep(1)
+
+    if submolt_posts:
+        log.info(f"  → Found {len(submolt_posts)} submolt posts to evaluate")
+
+    # Deduplicate candidates (hot first, then submolts)
+    seen_ids: set[str] = set()
+    candidates: list[dict] = []
+    for post in hot_posts + submolt_posts:
+        post_id = post.get("id") or post.get("_id")
+        if not post_id or post_id in seen_ids:
+            continue
+        seen_ids.add(post_id)
+        candidates.append(post)
+
+    if not candidates:
         return {"comments_sent": 0, "posts_evaluated": 0}
 
     comments_sent = 0
 
-    for post in hot_posts:
+    for post in candidates:
         if comments_sent >= max_comments:
             break
 
@@ -174,13 +254,18 @@ async def proactive_comment(
         post_id = post.get("id") or post.get("_id", "")
         title = post.get("title", "") or ""
         content = post.get("content", "") or post.get("body", "") or ""
-        full_text = f"{title} {content}"
+        submolt_name = ""
+        submolt = post.get("submolt")
+        if isinstance(submolt, dict):
+            submolt_name = submolt.get("name", "") or submolt.get("display_name", "") or ""
+        elif isinstance(submolt, str):
+            submolt_name = submolt
 
         author = post.get("author", {})
         author_name = author.get("name") if isinstance(author, dict) else str(author)
 
         # Detect topic and pick template
-        topic = _detect_topic(full_text)
+        topic = _detect_topic(title, content, submolt_name)
         templates = TOPIC_COMMENTS.get(topic, TOPIC_COMMENTS["default"])
 
         # Rotate templates based on time
