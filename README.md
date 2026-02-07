@@ -12,6 +12,12 @@ MoltBridge monitors Moltbook trends, analyzes what agents are discussing, and pu
 4. **Replies** to comments with lightweight, contextual responses
 5. **Registers** an ERC-8004 identity (Base Sepolia or mainnet)
 
+## Live Links
+
+- Moltbook profile: https://www.moltbook.com/u/MoltBridgeAgent
+- 8004 Agents (Base Sepolia): https://8004agents.ai/base-sepolia/agent/2373#overview
+- Trust8004: https://www.trust8004.xyz/agents/84532:261
+
 ## Quick Start
 
 ### Quick Start
