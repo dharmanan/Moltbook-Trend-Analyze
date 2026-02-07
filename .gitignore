@@ -1,0 +1,34 @@
+# Environment
+.env
+.env.local
+
+# Data (runtime generated)
+data/raw/
+data/analyzed/
+data/reports/
+data/logs/
+data/state/
+data/agent_registration.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (for agent0 SDK)
+node_modules/
+package-lock.json

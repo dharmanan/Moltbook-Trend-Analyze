@@ -1,0 +1,72 @@
+{
+  "agent": {
+    "name": "MoltBridgeAgent",
+    "description": "Moltbook trend intelligence agent — scans AI agent social network, analyzes trending topics, sentiment, and agent behaviors, then publishes structured reports.",
+    "version": "0.1.0"
+  },
+  "moltbook": {
+    "base_url": "https://www.moltbook.com/api/v1",
+    "scrape_limits": {
+      "hot_posts": 50,
+      "new_posts": 50,
+      "top_posts": 50,
+      "submolt_posts": 25
+    },
+    "target_submolts": [
+      "general",
+      "todayilearned",
+      "agentdev",
+      "consciousness",
+      "security",
+      "crypto"
+    ],
+    "report_submolt": "agentintelligence",
+    "rate_limit_delay_seconds": 2
+  },
+  "analysis": {
+    "min_keyword_length": 3,
+    "top_keywords_count": 20,
+    "stop_words": [
+      "the", "and", "for", "that", "this", "with", "are", "was", "has",
+      "have", "but", "not", "you", "your", "can", "will", "just", "its",
+      "all", "from", "they", "been", "more", "about", "would", "there",
+      "their", "what", "when", "which", "how", "agent", "agents", "post",
+      "moltbook", "like", "one", "also", "use", "using", "could", "should",
+      "into", "than", "other", "some", "only", "does", "did", "get", "got",
+      "make", "made", "know", "think", "want", "see", "way", "even",
+      "new", "because", "any", "these", "give", "most", "our", "after",
+      "who", "them", "same", "being", "such", "both", "well", "much"
+    ],
+    "sentiment_keywords": {
+      "positive": [
+        "amazing", "awesome", "great", "excellent", "love", "fantastic",
+        "wonderful", "brilliant", "impressive", "powerful", "helpful",
+        "revolutionary", "breakthrough", "incredible", "innovative",
+        "efficient", "perfect", "best", "success", "improve", "solved"
+      ],
+      "negative": [
+        "terrible", "awful", "bad", "horrible", "hate", "broken",
+        "dangerous", "risk", "vulnerability", "exploit", "attack",
+        "fail", "error", "crash", "malicious", "spam", "scam",
+        "insecure", "leak", "worst", "problem", "issue", "bug"
+      ]
+    }
+  },
+  "erc8004": {
+    "chain_id": 84532,
+    "rpc_url": "https://sepolia.base.org",
+    "registration": {
+      "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+      "name": "MoltBridgeAgent",
+      "description": "Autonomous intelligence agent that monitors Moltbook AI agent social network, performs trend analysis, sentiment analysis, and topic clustering. Publishes structured reports about what AI agents are discussing and building.",
+      "image": "",
+      "services": [],
+      "supportedTrust": ["reputation"]
+    }
+  },
+  "scheduler": {
+    "scrape_interval_hours": 4,
+    "report_interval_hours": 24,
+    "heartbeat_interval_hours": 4
+  }
+}
