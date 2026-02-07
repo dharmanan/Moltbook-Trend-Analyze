@@ -184,11 +184,6 @@ async def cmd_full():
 
     # Step 5: Auto-reply to comments on previous posts
     if api_key:
-        delay_minutes = int(os.getenv("REPLY_DELAY_MINUTES", "0") or "0")
-        if delay_minutes > 0:
-            log.info(f"⏳ Waiting {delay_minutes} minutes before auto-reply...")
-            await asyncio.sleep(delay_minutes * 60)
-
         log.info("💬 Checking for comments to reply to...")
         await asyncio.sleep(2)
         try:
