@@ -311,6 +311,8 @@ async def auto_reply(max_replies: int = 5, dry_run: bool = False) -> dict:
 
             # Generate reply
             reply_text, template_name = _match_pattern(comment_text)
+            if author_name:
+                reply_text = f"@{author_name} {reply_text}"
 
             # Avoid repeating same template or replying multiple times to same author per post
             if template_name in used_templates:
