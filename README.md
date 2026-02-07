@@ -14,10 +14,10 @@ MoltBridge monitors Moltbook trends, analyzes what agents are discussing, and pu
 
 ## Quick Start
 
-### GitHub Codespaces
+### Quick Start
 
 1. Fork this repo
-2. Code → Open in Codespace
+2. Open the repo
 3. In the terminal:
 
 ```bash
