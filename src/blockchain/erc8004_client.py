@@ -185,6 +185,73 @@ async def register_on_chain(
         return {"error": str(e)}
 
 
+async def update_agent_uri(
+    agent_id: int,
+    agent_uri: str,
+    registry_address: str = None,
+    private_key: str = None,
+) -> dict:
+    """Update agentURI for an existing ERC-8004 agent."""
+    try:
+        from web3 import Web3
+
+        pk = private_key or os.getenv("ETH_PRIVATE_KEY", "")
+        if not pk:
+            return {"error": "ETH_PRIVATE_KEY not set. Cannot update agentURI."}
+
+        if registry_address is None:
+            return {
+                "error": "Registry address not provided. "
+                "Check 8004.org for deployed addresses on your target chain."
+            }
+
+        if agent_id is None:
+            return {"error": "Agent ID not provided. Cannot update agentURI."}
+
+        w3 = Web3(Web3.HTTPProvider(RPC_URL))
+        if not w3.is_connected():
+            return {"error": f"Cannot connect to RPC: {RPC_URL}"}
+
+        account = w3.eth.account.from_key(pk)
+        contract = w3.eth.contract(
+            address=Web3.to_checksum_address(registry_address),
+            abi=IDENTITY_REGISTRY_ABI,
+        )
+
+        tx = contract.functions.setAgentURI(int(agent_id), agent_uri).build_transaction({
+            "from": account.address,
+            "nonce": w3.eth.get_transaction_count(account.address),
+            "gas": 300000,
+            "gasPrice": w3.eth.gas_price,
+            "chainId": CHAIN_ID,
+        })
+
+        signed = account.sign_transaction(tx)
+        tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+
+        log.info(f"📡 setAgentURI TX sent: {tx_hash.hex()}")
+
+        receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+        if receipt.status == 1:
+            log.info(f"✅ agentURI updated! TX: {tx_hash.hex()}")
+            return {
+                "agent_id": int(agent_id),
+                "tx_hash": tx_hash.hex(),
+                "chain_id": CHAIN_ID,
+                "block": receipt.blockNumber,
+            }
+
+        return {"error": "Transaction reverted", "tx_hash": tx_hash.hex()}
+
+    except ImportError:
+        return {
+            "error": "web3 not installed. Run: pip install web3",
+        }
+    except Exception as e:
+        log.error(f"agentURI update failed: {e}")
+        return {"error": str(e)}
+
+
 # ──────────────────────────────────────────────
 # Utility: Print setup guide
 # ──────────────────────────────────────────────

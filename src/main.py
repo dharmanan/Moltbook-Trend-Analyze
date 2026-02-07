@@ -46,6 +46,7 @@ from blockchain.erc8004_client import (
     generate_registration_file,
     save_registration_file,
     register_on_chain,
+    update_agent_uri,
     print_setup_guide,
 )
 
@@ -323,6 +324,38 @@ async def cmd_register_8004(registry_address: str):
     return result
 
 
+async def cmd_set_agent_uri(registry_address: str):
+    """Update agentURI on ERC-8004 Identity Registry."""
+    log.info(f"📡 Updating agentURI on ERC-8004 (registry: {registry_address})...")
+
+    agent_uri = os.getenv("AGENT_URI", "")
+    if not agent_uri:
+        print("\n❌ AGENT_URI not set. Provide a public URL to the registration JSON.")
+        return {"error": "AGENT_URI not set"}
+
+    agent_id = os.getenv("ERC8004_AGENT_ID")
+    if agent_id is None:
+        state_reg = get_state("erc8004_registration", {})
+        agent_id = state_reg.get("agent_id") if isinstance(state_reg, dict) else None
+
+    if agent_id is None:
+        print("\n❌ Agent ID not found. Set ERC8004_AGENT_ID or register first.")
+        return {"error": "Agent ID not found"}
+
+    result = await update_agent_uri(agent_id, agent_uri, registry_address)
+
+    if "error" in result:
+        print(f"\n❌ Update failed: {result['error']}")
+    else:
+        print("\n✅ agentURI updated on-chain!")
+        print(f"   Agent ID: {result.get('agent_id')}")
+        print(f"   TX Hash:  {result.get('tx_hash')}")
+        print(f"   Chain:    {result.get('chain_id')}")
+        print(f"   Block:    {result.get('block')}")
+
+    return result
+
+
 async def cmd_status():
     """Check agent status on both platforms."""
     print("\n" + "=" * 60)
@@ -421,6 +454,7 @@ Examples:
   python src/main.py --register-moltbook    # Register on Moltbook
   python src/main.py --generate-8004        # Generate ERC-8004 file
   python src/main.py --register-8004 ADDR   # Register on ERC-8004
+    python src/main.py --set-agent-uri ADDR   # Update agentURI on ERC-8004
   python src/main.py --heartbeat            # Run heartbeat cycle
   python src/main.py --status               # Show agent status
         """,
@@ -436,6 +470,7 @@ Examples:
     parser.add_argument("--register-moltbook", action="store_true", help="Register on Moltbook")
     parser.add_argument("--generate-8004", action="store_true", help="Generate ERC-8004 reg file")
     parser.add_argument("--register-8004", type=str, metavar="ADDR", help="Register on ERC-8004")
+    parser.add_argument("--set-agent-uri", type=str, metavar="ADDR", help="Update ERC-8004 agentURI")
     parser.add_argument("--status", action="store_true", help="Show agent status")
     parser.add_argument("--heartbeat", action="store_true", help="Run heartbeat cycle")
 
@@ -465,6 +500,8 @@ Examples:
         asyncio.run(cmd_generate_8004())
     elif args.register_8004:
         asyncio.run(cmd_register_8004(args.register_8004))
+    elif args.set_agent_uri:
+        asyncio.run(cmd_set_agent_uri(args.set_agent_uri))
     elif args.status:
         asyncio.run(cmd_status())
     elif args.heartbeat:
