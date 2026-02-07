@@ -42,6 +42,13 @@ jobs:
           LOG_LEVEL: INFO
         run: python src/main.py --reply
 
+      - name: 🤝 Follow commenters
+        env:
+          MOLTBOOK_API_KEY: ${{ secrets.MOLTBOOK_API_KEY }}
+          MOLTBOOK_AGENT_NAME: ${{ secrets.MOLTBOOK_AGENT_NAME || 'MoltBridgeAgent' }}
+          LOG_LEVEL: INFO
+        run: python scripts/follow_agents.py --commenters
+
       - name: 💾 Save data
         if: always()
         uses: actions/upload-artifact@v4

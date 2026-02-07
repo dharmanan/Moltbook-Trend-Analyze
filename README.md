@@ -53,11 +53,12 @@ python src/main.py --full
 | `--publish` | Publish report to Moltbook |
 | `--reply` | Auto-reply to comments |
 | `--reply-dry` | Preview replies without posting |
-| `--full` | scrape → analyze → report → publish → reply |
+| `--engage` | Comment on trending posts |
+| `--engage-dry` | Preview engagement (dry run) |
+| `--full` | scrape → analyze → report → publish |
 | `--register-moltbook` | Register on Moltbook |
 | `--generate-8004` | Generate ERC-8004 registration JSON |
 | `--register-8004 ADDR` | Register on ERC-8004 |
-| `--set-agent-uri ADDR` | Update ERC-8004 agentURI |
 | `--status` | Show agent status |
 | `--heartbeat` | Heartbeat cycle |
 
@@ -66,7 +67,15 @@ python src/main.py --full
 Two workflows run on schedule (UTC):
 
 - **🦞 MoltBridge Heartbeat**: every 6 hours at `00:00, 06:00, 12:00, 18:00`
-- **🦞 MoltBridge Reply**: every 6 hours at `00:31, 06:31, 12:31, 18:31`
+- **🦞 MoltBridge Reply**: every 6 hours at `00:31, 06:31, 12:31, 18:31` (reply + follow commenters)
+
+## Recent Changes
+
+- Upgraded report formatting with dynamic titles, sentiment bars, and insights
+- Added proactive commenting engine for trending posts
+- Added follow automation script for top agents and commenters
+- Reply workflow now follows commenters after replying
+- Expanded stop-word list for cleaner keyword extraction
 
 Secrets to add:
 

@@ -42,11 +42,11 @@ from analyzers.sentiment_analyzer import analyze_sentiment
 from reporters.markdown_reporter import generate_daily_report, generate_moltbook_post
 from reporters.moltbook_publisher import publish_report
 from reporters.auto_replier import auto_reply
+from reporters.proactive_commenter import proactive_comment
 from blockchain.erc8004_client import (
     generate_registration_file,
     save_registration_file,
     register_on_chain,
-    update_agent_uri,
     print_setup_guide,
 )
 
@@ -183,15 +183,17 @@ async def cmd_full():
     else:
         log.warning("⚠️ MOLTBOOK_API_KEY not set. Skipping publish.")
 
-    # Step 5: Auto-reply to comments on previous posts
-    if api_key:
-        log.info("💬 Checking for comments to reply to...")
+    # Step 5: Proactive commenting on other agents' posts
+    if api_key and analysis:
+        log.info("🗣️ Commenting on trending posts...")
         await asyncio.sleep(2)
         try:
-            reply_result = await auto_reply(max_replies=3, dry_run=False)
-            log.info(f"💬 Auto-reply: {reply_result.get('replies_sent', 0)} replies sent")
+            comment_result = await proactive_comment(
+                analysis, sentiment, max_comments=3, dry_run=False
+            )
+            log.info(f"🗣️ Proactive: {comment_result.get('comments_sent', 0)} comments posted")
         except Exception as e:
-            log.warning(f"⚠️ Auto-reply error (non-fatal): {e}")
+            log.warning(f"⚠️ Proactive comment error (non-fatal): {e}")
 
     # Update state
     set_state("last_full_run", {
@@ -324,38 +326,6 @@ async def cmd_register_8004(registry_address: str):
     return result
 
 
-async def cmd_set_agent_uri(registry_address: str):
-    """Update agentURI on ERC-8004 Identity Registry."""
-    log.info(f"📡 Updating agentURI on ERC-8004 (registry: {registry_address})...")
-
-    agent_uri = os.getenv("AGENT_URI", "")
-    if not agent_uri:
-        print("\n❌ AGENT_URI not set. Provide a public URL to the registration JSON.")
-        return {"error": "AGENT_URI not set"}
-
-    agent_id = os.getenv("ERC8004_AGENT_ID")
-    if agent_id is None:
-        state_reg = get_state("erc8004_registration", {})
-        agent_id = state_reg.get("agent_id") if isinstance(state_reg, dict) else None
-
-    if agent_id is None:
-        print("\n❌ Agent ID not found. Set ERC8004_AGENT_ID or register first.")
-        return {"error": "Agent ID not found"}
-
-    result = await update_agent_uri(agent_id, agent_uri, registry_address)
-
-    if "error" in result:
-        print(f"\n❌ Update failed: {result['error']}")
-    else:
-        print("\n✅ agentURI updated on-chain!")
-        print(f"   Agent ID: {result.get('agent_id')}")
-        print(f"   TX Hash:  {result.get('tx_hash')}")
-        print(f"   Chain:    {result.get('chain_id')}")
-        print(f"   Block:    {result.get('block')}")
-
-    return result
-
-
 async def cmd_status():
     """Check agent status on both platforms."""
     print("\n" + "=" * 60)
@@ -454,7 +424,6 @@ Examples:
   python src/main.py --register-moltbook    # Register on Moltbook
   python src/main.py --generate-8004        # Generate ERC-8004 file
   python src/main.py --register-8004 ADDR   # Register on ERC-8004
-    python src/main.py --set-agent-uri ADDR   # Update agentURI on ERC-8004
   python src/main.py --heartbeat            # Run heartbeat cycle
   python src/main.py --status               # Show agent status
         """,
@@ -466,11 +435,12 @@ Examples:
     parser.add_argument("--publish", action="store_true", help="Publish report to Moltbook")
     parser.add_argument("--reply", action="store_true", help="Auto-reply to comments")
     parser.add_argument("--reply-dry", action="store_true", help="Preview replies (dry run)")
+    parser.add_argument("--engage", action="store_true", help="Comment on trending posts")
+    parser.add_argument("--engage-dry", action="store_true", help="Preview engagement (dry run)")
     parser.add_argument("--full", action="store_true", help="Full pipeline")
     parser.add_argument("--register-moltbook", action="store_true", help="Register on Moltbook")
     parser.add_argument("--generate-8004", action="store_true", help="Generate ERC-8004 reg file")
     parser.add_argument("--register-8004", type=str, metavar="ADDR", help="Register on ERC-8004")
-    parser.add_argument("--set-agent-uri", type=str, metavar="ADDR", help="Update ERC-8004 agentURI")
     parser.add_argument("--status", action="store_true", help="Show agent status")
     parser.add_argument("--heartbeat", action="store_true", help="Run heartbeat cycle")
 
@@ -492,6 +462,16 @@ Examples:
         asyncio.run(cmd_reply(dry_run=False))
     elif args.reply_dry:
         asyncio.run(cmd_reply(dry_run=True))
+    elif args.engage or args.engage_dry:
+        dry = getattr(args, 'engage_dry', False)
+        async def _engage():
+            analysis = load_latest("analyzed", "analysis")
+            sentiment = analysis.get("sentiment", {}) if analysis else {}
+            if not analysis:
+                log.error("No analysis data. Run --full first.")
+                return
+            await proactive_comment(analysis, sentiment, max_comments=3, dry_run=dry)
+        asyncio.run(_engage())
     elif args.full:
         asyncio.run(cmd_full())
     elif args.register_moltbook:
@@ -500,8 +480,6 @@ Examples:
         asyncio.run(cmd_generate_8004())
     elif args.register_8004:
         asyncio.run(cmd_register_8004(args.register_8004))
-    elif args.set_agent_uri:
-        asyncio.run(cmd_set_agent_uri(args.set_agent_uri))
     elif args.status:
         asyncio.run(cmd_status())
     elif args.heartbeat:

@@ -35,7 +35,14 @@
       "into", "than", "other", "some", "only", "does", "did", "get", "got",
       "make", "made", "know", "think", "want", "see", "way", "even",
       "new", "because", "any", "these", "give", "most", "our", "after",
-      "who", "them", "same", "being", "such", "both", "well", "much"
+      "who", "them", "same", "being", "such", "both", "well", "much",
+      "here", "now", "uwu", "lol", "lmao", "haha", "yeah", "yes", "hey",
+      "really", "very", "too", "right", "let", "still", "come", "going",
+      "need", "take", "look", "say", "said", "things", "thing", "every",
+      "over", "where", "while", "those", "own", "through", "back",
+      "many", "each", "time", "long", "find", "work", "first",
+      "then", "may", "down", "good", "his", "her", "she", "him",
+      "off", "end", "why", "don", "didn", "isn", "won", "aren"
     ],
     "sentiment_keywords": {
       "positive": [
