@@ -2,84 +2,99 @@
 
 **Moltbook ↔ ERC-8004 Bridge Intelligence Agent**
 
-AI agent ekosistemindeki trendleri takip eden, analiz eden ve raporlayan otonom bir köprü ajan.
+MoltBridge monitors Moltbook trends, analyzes what agents are discussing, and publishes structured reports. It can also auto-reply to comments on its posts and register on ERC-8004.
 
-## Ne Yapar?
+## What It Does
 
-1. **Tarar** → Moltbook'ta (AI agentların sosyal ağı) trending topic'leri, submolt'ları ve tartışmaları toplar
-2. **Analiz Eder** → Keyword extraction, sentiment analysis, topic clustering, agent behavior patterns
-3. **Raporlar** → Yapılandırılmış Markdown raporlar üretir
-4. **Paylaşır** → Raporları Moltbook'ta yayınlar
-5. **Kimlik** → ERC-8004 üzerinde trustless on-chain identity ile kayıtlı
+1. **Scrapes** Moltbook feeds (hot/new/top + selected submolts)
+2. **Analyzes** trends, bigrams, sentiment, and agent activity
+3. **Reports** in Markdown and posts a concise summary on Moltbook
+4. **Replies** to comments with lightweight, contextual responses
+5. **Registers** an ERC-8004 identity (Base Sepolia or mainnet)
 
-## Hızlı Başlangıç
+## Quick Start
 
-### GitHub Codespace ile
+### GitHub Codespaces
 
-1. Bu repo'yu fork'layın
-2. "Code" → "Open in Codespace" tıklayın
-3. Terminal'de:
+1. Fork this repo
+2. Code → Open in Codespace
+3. In the terminal:
 
 ```bash
-# Bağımlılıkları yükle
 pip install -r requirements.txt
-
-# Environment ayarla
 cp .env.example .env
-# .env dosyasını düzenle
-
-# Moltbook'a kayıt ol
 python src/main.py --register-moltbook
-
-# İlk tam çalıştırma
 python src/main.py --full
 ```
 
-### Lokal Kurulum
+### Local
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/moltbook-8004-bridge-agent.git
-cd moltbook-8004-bridge-agent
+git clone https://github.com/dharmanan/Moltbook-Trend-Analyze.git
+cd Moltbook-Trend-Analyze
 pip install -r requirements.txt
 cp .env.example .env
-# .env dosyasını düzenle
 python src/main.py --full
 ```
 
-## Komutlar
+## Commands
 
-| Komut | Açıklama |
-|-------|----------|
-| `--scrape` | Moltbook'tan veri çek |
-| `--analyze` | Son scrape verisini analiz et |
-| `--report` | Markdown rapor oluştur |
-| `--publish` | Raporu Moltbook'ta paylaş |
-| `--full` | Tam pipeline: scrape → analyze → report → publish |
-| `--register-moltbook` | Moltbook'a kayıt ol |
-| `--generate-8004` | ERC-8004 registration dosyası oluştur |
-| `--register-8004 ADDR` | ERC-8004'e on-chain kayıt |
-| `--status` | Agent durumunu göster |
-| `--heartbeat` | Heartbeat döngüsü çalıştır |
+| Command | Description |
+|---|---|
+| `--scrape` | Pull Moltbook data |
+| `--analyze` | Analyze latest scrape |
+| `--report` | Generate a Markdown report |
+| `--publish` | Publish report to Moltbook |
+| `--reply` | Auto-reply to comments |
+| `--reply-dry` | Preview replies without posting |
+| `--full` | scrape → analyze → report → publish → reply |
+| `--register-moltbook` | Register on Moltbook |
+| `--generate-8004` | Generate ERC-8004 registration JSON |
+| `--register-8004 ADDR` | Register on ERC-8004 |
+| `--set-agent-uri ADDR` | Update ERC-8004 agentURI |
+| `--status` | Show agent status |
+| `--heartbeat` | Heartbeat cycle |
 
-## Mimari
+## Automation (GitHub Actions)
 
-```
-Moltbook API ──→ Scraper ──→ Analyzer ──→ Reporter ──→ Moltbook Post
-                                │
-                                └──→ ERC-8004 Identity (on-chain)
-```
+Two workflows run on schedule (UTC):
 
-## Otomasyon
+- **🦞 MoltBridge Heartbeat**: every 6 hours at `00:00, 06:00, 12:00, 18:00`
+- **🦞 MoltBridge Reply**: every 6 hours at `00:31, 06:31, 12:31, 18:31`
 
-GitHub Actions ile her 4 saatte bir otomatik çalışır. Secrets'a ekleyin:
+Secrets to add:
+
 - `MOLTBOOK_API_KEY`
-- `ETH_PRIVATE_KEY` (opsiyonel, ERC-8004 için)
-- `ETH_RPC_URL` (opsiyonel)
+- `ETH_PRIVATE_KEY` (optional, for ERC-8004)
+- `ETH_RPC_URL` (optional)
 
-## Detaylı Plan
+## ERC-8004 Registration (Base Sepolia)
 
-Projenin tam planı için [PLAN.md](PLAN.md) dosyasına bakın.
+1. Generate the registration JSON:
 
-## Lisans
+```bash
+python src/main.py --generate-8004
+```
+
+2. Host the JSON publicly (GitHub raw, IPFS, or public Gist)
+3. Register on-chain:
+
+```bash
+python src/main.py --register-8004 <registry_address>
+```
+
+If the URL changes later, update it with:
+
+```bash
+AGENT_URI="<public_url>" ERC8004_AGENT_ID=<id> python src/main.py --set-agent-uri <registry_address>
+```
+
+## Security Notes
+
+- Keep `.env` local only; never commit it.
+- Use GitHub Secrets for API keys.
+- Rotate keys if they ever leak.
+
+## License
 
 MIT
