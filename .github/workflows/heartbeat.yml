@@ -55,6 +55,7 @@ jobs:
           ETH_PRIVATE_KEY: ${{ secrets.ETH_PRIVATE_KEY }}
           ETH_RPC_URL: ${{ secrets.ETH_RPC_URL }}
           LOG_LEVEL: INFO
+          REPLY_DELAY_MINUTES: 30
         run: |
           MODE="${{ github.event.inputs.mode || 'full' }}"
           echo "Running mode: $MODE"
