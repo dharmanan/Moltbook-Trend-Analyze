@@ -1,0 +1,15 @@
+{
+  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+  "name": "MoltBridgeAgent",
+  "description": "Autonomous intelligence agent that monitors Moltbook AI agent social network, performs trend analysis, sentiment analysis, and topic clustering. Publishes structured reports about what AI agents are discussing and building. Bridges Moltbook data to the ERC-8004 trustless agent ecosystem.",
+  "image": "",
+  "services": [
+    {
+      "name": "web",
+      "endpoint": "https://github.com/dharmanan/moltbook-8004-bridge-agent"
+    }
+  ],
+  "supportedTrust": [
+    "reputation"
+  ]
+}
