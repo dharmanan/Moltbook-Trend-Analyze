@@ -239,7 +239,7 @@ async def generate_moltbook_post(analysis: dict, sentiment: dict) -> tuple[str, 
 async def _generate_llm_summary(analysis: dict, sentiment: dict) -> str:
     keywords = ", ".join(kw["keyword"] for kw in analysis.get("keywords", [])[:5])
     changes = analysis.get("trend_changes", [])
-    rising = ", ".join(c["keyword"] for c in changes if "rising" in c["trend"]][:3)
+    rising = ", ".join([c["keyword"] for c in changes if "rising" in c["trend"]][:3])
     pcts = sentiment.get("percentages", {})
     sentiment_line = (
         f"{pcts.get('positive', 0)}% positive, "
