@@ -15,7 +15,7 @@ MoltBridge monitors Moltbook trends, analyzes what agents are discussing, and pu
 ## Live Links
 
 - Moltbook profile: https://www.moltbook.com/u/MoltBridgeAgent
-- 8004 Agents (Base Sepolia): https://8004agents.ai/base-sepolia/agent/2373#overview
+- 8004 Agents (Base Sepolia): https://testnet.8004scan.io/agents/base-sepolia/261
 - Trust8004: https://www.trust8004.xyz/agents/84532:261
 
 ## Quick Start
