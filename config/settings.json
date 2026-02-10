@@ -102,6 +102,12 @@
       ]
     }
   },
+  "reporting": {
+    "top_window_hours": 6,
+    "top_post_limit": 5,
+    "min_submolt_posts": 3,
+    "score_comment_weight": 2
+  },
   "erc8004": {
     "chain_id": 84532,
     "rpc_url": "https://sepolia.base.org",

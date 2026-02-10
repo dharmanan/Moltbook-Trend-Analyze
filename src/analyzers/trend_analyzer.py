@@ -4,7 +4,7 @@ import json
 import os
 import re
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from utils import log, save_analysis, load_latest, load_previous
@@ -12,11 +12,17 @@ from utils import log, save_analysis, load_latest, load_previous
 # Load config
 _settings_path = os.path.join(os.path.dirname(__file__), "..", "..", "config", "settings.json")
 with open(_settings_path, "r") as f:
-    _cfg = json.load(f)["analysis"]
+    _settings = json.load(f)
+
+_cfg = _settings["analysis"]
+_reporting_cfg = _settings.get("reporting", {})
 
 STOP_WORDS = set(_cfg["stop_words"])
 MIN_KW_LEN = _cfg["min_keyword_length"]
 TOP_KW_COUNT = _cfg["top_keywords_count"]
+TOP_WINDOW_HOURS = int(_reporting_cfg.get("top_window_hours", 6))
+TOP_POST_LIMIT = int(_reporting_cfg.get("top_post_limit", 5))
+SCORE_COMMENT_WEIGHT = int(_reporting_cfg.get("score_comment_weight", 2))
 
 
 # ──────────────────────────────────────────────
@@ -225,6 +231,57 @@ def compare_trends(current_keywords: list[dict], previous_keywords: list[dict]) 
     return changes
 
 
+def _parse_datetime(dt_value: str) -> datetime | None:
+    if not dt_value:
+        return None
+    if isinstance(dt_value, str):
+        try:
+            return datetime.fromisoformat(dt_value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    return None
+
+
+def _post_score(post: dict) -> int:
+    upvotes = post.get("upvotes", 0) or post.get("score", 0) or 0
+    comments = post.get("comment_count", 0) or post.get("comments", 0) or 0
+    return int(upvotes) + int(comments) * SCORE_COMMENT_WEIGHT
+
+
+def _collect_top_posts(posts: list[dict], scraped_at: str | None) -> list[dict]:
+    if not posts:
+        return []
+    now = _parse_datetime(scraped_at) or datetime.utcnow()
+    cutoff = now - timedelta(hours=TOP_WINDOW_HOURS)
+
+    recent_posts = []
+    for post in posts:
+        created_at = _parse_datetime(post.get("created_at"))
+        if not created_at or created_at < cutoff:
+            continue
+        score = _post_score(post)
+        submolt = post.get("submolt") or {}
+        if isinstance(submolt, dict):
+            submolt_name = submolt.get("name") or submolt.get("display_name") or ""
+        else:
+            submolt_name = str(submolt)
+        author = post.get("author") or {}
+        author_name = author.get("name") if isinstance(author, dict) else str(author)
+        recent_posts.append({
+            "id": post.get("id") or post.get("_id"),
+            "title": post.get("title") or "",
+            "submolt": submolt_name,
+            "author": author_name,
+            "upvotes": post.get("upvotes", 0) or post.get("score", 0) or 0,
+            "comment_count": post.get("comment_count", 0) or post.get("comments", 0) or 0,
+            "score": score,
+            "created_at": post.get("created_at"),
+        })
+
+    recent_posts.sort(key=lambda item: (-item["score"], item["title"]))
+    return recent_posts[:TOP_POST_LIMIT]
+
+
 # ──────────────────────────────────────────────
 # Full Analysis Pipeline
 # ──────────────────────────────────────────────
@@ -281,6 +338,9 @@ def run_full_analysis(data: dict) -> dict:
     else:
         log.info("  → No previous data for comparison (first run)")
 
+    # Top conversations in the last window
+    top_posts_recent = _collect_top_posts(unique_posts, data.get("metadata", {}).get("scraped_at"))
+
     # Build result
     analysis = {
         "analyzed_at": datetime.now().isoformat(),
@@ -288,6 +348,9 @@ def run_full_analysis(data: dict) -> dict:
         "keywords": keywords,
         "bigram_topics": bigrams,
         "submolt_activity": submolt_activity,
+        "top_posts_recent": top_posts_recent,
+        "top_posts_window_hours": TOP_WINDOW_HOURS,
+        "top_posts_score_weight": SCORE_COMMENT_WEIGHT,
         "agent_patterns": agent_patterns,
         "trend_changes": trend_changes,
         "metadata": data.get("metadata", {}),

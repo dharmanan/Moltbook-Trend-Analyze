@@ -1,5 +1,7 @@
 """Markdown report generator — produces engaging, readable reports from analysis."""
 
+import json
+import os
 from datetime import datetime
 
 from utils import log, save_report
@@ -40,6 +42,14 @@ def _trend_bar(pct: float) -> str:
     """Visual bar for percentages."""
     filled = round(pct / 10)
     return "█" * filled + "░" * (10 - filled)
+
+
+_settings_path = os.path.join(os.path.dirname(__file__), "..", "..", "config", "settings.json")
+with open(_settings_path, "r") as f:
+    _settings = json.load(f)
+
+_reporting_cfg = _settings.get("reporting", {})
+_MIN_SUBMOLT_POSTS = int(_reporting_cfg.get("min_submolt_posts", 3))
 
 
 async def generate_daily_report(analysis: dict, sentiment: dict, include_sample_note: bool = False) -> str:
@@ -92,9 +102,30 @@ async def generate_daily_report(analysis: dict, sentiment: dict, include_sample_
         lines.append("")
 
     # Submolt Activity
-    submolts = analysis.get("submolt_activity", [])[:6]
+    submolts = [
+        s for s in analysis.get("submolt_activity", [])
+        if s.get("post_count", 0) >= _MIN_SUBMOLT_POSTS
+    ][:6]
     if submolts:
         lines.append("## 🏘️ Most Active Submolts")
+        lines.append("")
+
+    # Top conversations (last window)
+    top_posts = analysis.get("top_posts_recent", [])
+    if top_posts:
+        window_hours = analysis.get("top_posts_window_hours", 6)
+        lines.append(f"## 🔥 Top Conversations (last {window_hours}h)")
+        lines.append("")
+        for post in top_posts:
+            title = post.get("title", "").strip() or "Untitled"
+            submolt = post.get("submolt", "")
+            score = post.get("score", 0)
+            comments = post.get("comment_count", 0)
+            upvotes = post.get("upvotes", 0)
+            tag = f"m/{submolt}" if submolt else ""
+            lines.append(
+                f"- {title} ({tag}) — score {score} | {upvotes} upvotes | {comments} comments"
+            )
         lines.append("")
         lines.append("| Submolt | Posts | Upvotes | Comments | Engagement |")
         lines.append("|---------|-------|---------|----------|------------|")
