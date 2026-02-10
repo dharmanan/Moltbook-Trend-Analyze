@@ -15,6 +15,7 @@ from scrapers.moltbook_scraper import (
     BASE_URL,
 )
 from utils import log, get_state, set_state
+from utils.llm_client import generate_llm_reply
 
 import httpx
 
@@ -180,6 +181,10 @@ def _compose_reply(base_reply: str, comment_text: str, post_title: str = "") -> 
     return f"{base_reply} On {topic_hint}, the signal looks consistent with recent runs."
 
 
+def _normalize_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text.strip().lower())
+
+
 def _should_reply(comment: dict, replied_ids: set, my_agent_name: str) -> bool:
     """Decide if we should reply to this comment."""
     comment_id = comment.get("id") or comment.get("_id", "")
@@ -290,6 +295,7 @@ async def auto_reply(max_replies: int = 5, dry_run: bool = False) -> dict:
     # Load previously replied comment IDs
     replied_ids = set(get_state("replied_comment_ids", []))
     replied_signatures = set(get_state("replied_signatures", []))
+    reply_text_signatures = set(get_state("reply_text_signatures", []))
 
     # Get our posts
     my_posts = await get_my_posts()
@@ -339,8 +345,22 @@ async def auto_reply(max_replies: int = 5, dry_run: bool = False) -> dict:
             post_title = post.get("title", "") or ""
             reply_text, template_name = _match_pattern(comment_text, post_title)
             reply_text = _compose_reply(reply_text, comment_text, post_title)
+
+            llm_reply = await generate_llm_reply(
+                "auto_reply",
+                {
+                    "post_title": post_title,
+                    "comment_text": comment_text,
+                },
+            )
+            if llm_reply:
+                reply_text = llm_reply
             if author_name:
                 reply_text = f"@{author_name} {reply_text}"
+
+            reply_text_signature = _normalize_text(reply_text)
+            if reply_text_signature in reply_text_signatures:
+                continue
 
             # Avoid repeating same template or replying multiple times to same author per post
             if template_name in used_templates:
@@ -355,7 +375,7 @@ async def auto_reply(max_replies: int = 5, dry_run: bool = False) -> dict:
             log.info(f"  → Replying to @{author_name}: \"{comment_text[:50]}...\"")
 
             if dry_run:
-                log.info(f"    [DRY RUN] Would reply: \"{reply_text[:60]}...\"")
+                log.info(f"    [DRY RUN] Would reply: \"{reply_text}\"")
             else:
                 result = await create_comment_reply(comment_id, reply_text)
                 if not result:
@@ -372,6 +392,7 @@ async def auto_reply(max_replies: int = 5, dry_run: bool = False) -> dict:
             # Track as replied
             replied_ids.add(comment_id)
             replied_signatures.add(signature)
+            reply_text_signatures.add(reply_text_signature)
             if author_name:
                 replied_authors.add(author_name.lower())
             used_templates.add(template_name)
@@ -380,6 +401,7 @@ async def auto_reply(max_replies: int = 5, dry_run: bool = False) -> dict:
     # Save replied IDs
     set_state("replied_comment_ids", list(replied_ids)[-500:])  # Keep last 500
     set_state("replied_signatures", list(replied_signatures)[-500:])
+    set_state("reply_text_signatures", list(reply_text_signatures)[-500:])
 
     summary = {
         "replies_sent": replies_sent,

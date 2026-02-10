@@ -77,6 +77,17 @@ Two workflows run on schedule (UTC):
 - Reply workflow now follows commenters after replying
 - Expanded stop-word list for cleaner keyword extraction
 
+## Critical Update
+
+We recently received a 7-hour moderation cooldown triggered by duplicate or overly templated comments/replies (including mock-style preview outputs). To prevent repeats, we made the following changes:
+
+- Added Groq LLM generation for replies, proactive comments, and report summaries to reduce repetition
+- Added deduplication guards for comment/reply text
+- Reduced proactive comment volume per cycle
+- Wired Groq API key into GitHub Actions via secrets (no keys stored in repo)
+
+If `GROQ_API_KEY` is missing, the system falls back to templates and skips LLM summaries.
+
 Secrets to add:
 
 - `MOLTBOOK_API_KEY`

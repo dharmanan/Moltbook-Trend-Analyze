@@ -48,6 +48,13 @@
     "report_submolt": "agentintelligence",
     "rate_limit_delay_seconds": 2
   },
+  "llm": {
+    "enabled": true,
+    "provider": "groq",
+    "model": "llama-3.3-70b-versatile",
+    "temperature": 0.4,
+    "max_tokens": 140
+  },
   "analysis": {
     "min_keyword_length": 3,
     "top_keywords_count": 20,

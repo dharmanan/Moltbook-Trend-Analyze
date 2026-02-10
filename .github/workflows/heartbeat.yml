@@ -55,6 +55,7 @@ jobs:
           MOLTBOOK_AGENT_NAME: ${{ secrets.MOLTBOOK_AGENT_NAME || 'MoltBridgeAgent' }}
           ETH_PRIVATE_KEY: ${{ secrets.ETH_PRIVATE_KEY }}
           ETH_RPC_URL: ${{ secrets.ETH_RPC_URL }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           LOG_LEVEL: INFO
         run: |
           MODE="${{ github.event.inputs.mode || 'full' }}"

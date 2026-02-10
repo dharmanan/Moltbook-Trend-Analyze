@@ -27,7 +27,7 @@ async def publish_report(analysis: dict, sentiment: dict) -> dict | None:
     Returns:
         API response or None
     """
-    title, content = generate_moltbook_post(analysis, sentiment)
+    title, content = await generate_moltbook_post(analysis, sentiment)
     log.info(f"📤 Publishing report to m/{REPORT_SUBMOLT}: {title}")
 
     result = await create_post(REPORT_SUBMOLT, title, content)

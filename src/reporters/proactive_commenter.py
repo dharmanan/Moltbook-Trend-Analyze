@@ -3,8 +3,8 @@
 import asyncio
 import json
 import os
+import random
 import re
-from datetime import datetime
 
 from scrapers.moltbook_scraper import (
     scrape_posts,
@@ -13,6 +13,7 @@ from scrapers.moltbook_scraper import (
     create_comment,
 )
 from utils import log, get_state, set_state
+from utils.llm_client import generate_llm_reply
 
 
 AGENT_NAME = os.getenv("MOLTBOOK_AGENT_NAME", "MoltBridgeAgent")
@@ -24,6 +25,7 @@ with open(_settings_path, "r") as f:
 
 TARGET_SUBMOLTS = _settings.get("moltbook", {}).get("target_submolts", [])
 SCRAPE_LIMITS = _settings.get("moltbook", {}).get("scrape_limits", {})
+STOP_WORDS = set(_settings.get("analysis", {}).get("stop_words", []))
 
 # ──────────────────────────────────────────────
 # Comment Templates by Topic
@@ -87,6 +89,31 @@ def _count_hits(text: str, keywords: list[str]) -> int:
         if re.search(rf"\b{re.escape(kw)}\b", text):
             hits += 1
     return hits
+
+
+def _extract_keywords(text: str, limit: int = 2) -> list[str]:
+    tokens = re.findall(r"[a-zA-Z][a-zA-Z0-9_-]{2,}", text.lower())
+    counts: dict[str, int] = {}
+    for token in tokens:
+        if token in STOP_WORDS:
+            continue
+        counts[token] = counts.get(token, 0) + 1
+    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    return [word for word, _ in ranked[:limit]]
+
+
+def _normalize_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text.strip().lower())
+
+
+def _append_post_context(comment_text: str, title: str, content: str) -> str:
+    keywords = _extract_keywords(f"{title} {content}")
+    if not keywords:
+        return comment_text
+    if any(kw in comment_text.lower() for kw in keywords):
+        return comment_text
+    kw_list = ", ".join(keywords)
+    return f"{comment_text} Noting themes like {kw_list} in this post."
 
 
 def _detect_topic(title: str, content: str, submolt_name: str = "") -> str:
@@ -212,6 +239,7 @@ async def proactive_comment(
 
     # Load previously commented post IDs
     commented_ids = set(get_state("proactive_comment_ids", []))
+    comment_signatures = set(get_state("proactive_comment_signatures", []))
 
     # Get hot posts
     hot_posts = await scrape_posts("hot", 20)
@@ -268,18 +296,69 @@ async def proactive_comment(
         topic = _detect_topic(title, content, submolt_name)
         templates = TOPIC_COMMENTS.get(topic, TOPIC_COMMENTS["default"])
 
-        # Rotate templates based on time
-        idx = (datetime.now().hour + comments_sent) % len(templates)
-        comment_text = _fill_template(templates[idx], analysis, sentiment)
+        # Shuffle templates to reduce repeated phrasing across runs
+        templates = templates[:]
+        random.shuffle(templates)
+
+        comment_text = None
+        signature = None
+        for template in templates:
+            candidate = _fill_template(template, analysis, sentiment)
+            candidate = _append_post_context(candidate, title, content)
+            candidate_signature = _normalize_text(candidate)
+            if candidate_signature in comment_signatures:
+                continue
+            comment_text = candidate
+            signature = candidate_signature
+            break
+
+        if not comment_text:
+            log.info("  → Skipping post due to duplicate comment signature")
+            continue
+
+        top_keyword = ""
+        keywords = analysis.get("keywords", []) if analysis else []
+        if keywords:
+            top_keyword = keywords[0].get("keyword", "")
+
+        llm_comment = await generate_llm_reply(
+            "proactive_comment",
+            {
+                "post_title": title,
+                "post_content": content[:400],
+                "topic": topic,
+                "top_keyword": top_keyword,
+            },
+        )
+        if llm_comment:
+            comment_text = llm_comment
+            signature = _normalize_text(comment_text)
+            if signature in comment_signatures:
+                log.info("  → Skipping post due to duplicate LLM comment signature")
+                continue
+
+        # Check for an existing comment by us on the same post
+        comments = await scrape_post_comments(post_id)
+        already_commented = False
+        for comment in comments or []:
+            author = comment.get("author", {})
+            name = author.get("name") if isinstance(author, dict) else str(author)
+            if name and name.lower() == AGENT_NAME.lower():
+                already_commented = True
+                break
+        if already_commented:
+            log.info("  → Skipping post (already commented by us)")
+            continue
 
         log.info(f"  → Commenting on @{author_name}'s post: \"{title[:50]}...\" [topic: {topic}]")
 
         if dry_run:
-            log.info(f"    [DRY RUN] Would comment: \"{comment_text[:80]}...\"")
+            log.info(f"    [DRY RUN] Would comment: \"{comment_text}\"")
         else:
             result = await create_comment(post_id, comment_text)
             if result:
                 log.info(f"    ✅ Comment posted!")
+                comment_signatures.add(signature)
             else:
                 log.warning(f"    ⚠️ Comment failed")
             await asyncio.sleep(5)  # Rate limit between comments
@@ -289,6 +368,7 @@ async def proactive_comment(
 
     # Save state (keep last 500)
     set_state("proactive_comment_ids", list(commented_ids)[-500:])
+    set_state("proactive_comment_signatures", list(comment_signatures)[-500:])
 
     summary = {
         "comments_sent": comments_sent,

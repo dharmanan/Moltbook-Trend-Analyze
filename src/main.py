@@ -117,7 +117,7 @@ async def cmd_report():
         return None
 
     sentiment = analysis.get("sentiment", {})
-    report = generate_daily_report(analysis, sentiment)
+    report = await generate_daily_report(analysis, sentiment)
     print("\n" + report)
     return report
 
@@ -167,7 +167,7 @@ async def cmd_full():
     analysis["sentiment"] = sentiment
 
     # Step 3: Report
-    report = generate_daily_report(analysis, sentiment)
+    report = await generate_daily_report(analysis, sentiment)
     log.info("📝 Report generated")
 
     # Step 4: Publish
@@ -189,7 +189,7 @@ async def cmd_full():
         await asyncio.sleep(2)
         try:
             comment_result = await proactive_comment(
-                analysis, sentiment, max_comments=3, dry_run=False
+                analysis, sentiment, max_comments=1, dry_run=False
             )
             log.info(f"🗣️ Proactive: {comment_result.get('comments_sent', 0)} comments posted")
         except Exception as e:
@@ -470,7 +470,7 @@ Examples:
             if not analysis:
                 log.error("No analysis data. Run --full first.")
                 return
-            await proactive_comment(analysis, sentiment, max_comments=3, dry_run=dry)
+            await proactive_comment(analysis, sentiment, max_comments=1, dry_run=dry)
         asyncio.run(_engage())
     elif args.full:
         asyncio.run(cmd_full())
