@@ -4,7 +4,7 @@ import asyncio
 import json
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -47,7 +47,10 @@ def _parse_datetime(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed
     except ValueError:
         return None
 
@@ -55,7 +58,7 @@ def _parse_datetime(value: str | None) -> datetime | None:
 def _select_dynamic_submolts(submolts: list[dict]) -> list[str]:
     if not submolts:
         return []
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     cutoff = now - timedelta(hours=_dynamic_window_hours)
 
     candidates: list[tuple[datetime, int, str]] = []
