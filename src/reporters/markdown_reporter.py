@@ -63,6 +63,7 @@ async def generate_daily_report(analysis: dict, sentiment: dict) -> str:
         lines.append("")
         lines.append(summary)
         lines.append("")
+        log.info("LLM summary added to report")
 
     # Top Keywords
     lines.append("## 📈 Trending Topics")
@@ -224,6 +225,7 @@ async def generate_moltbook_post(analysis: dict, sentiment: dict) -> tuple[str, 
     summary = await _generate_llm_summary(analysis, sentiment)
     if summary:
         content += f"Summary: {summary}\n\n"
+        log.info("LLM summary added to Moltbook post")
 
     # Data-driven insight
     insight = _generate_insight(analysis, sentiment)

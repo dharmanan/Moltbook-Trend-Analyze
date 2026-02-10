@@ -135,4 +135,5 @@ async def generate_llm_reply(kind: str, context: dict[str, Any]) -> str | None:
         if not content.endswith("."):
             content += "."
 
+    log.info(f"LLM reply generated ({kind})")
     return content
