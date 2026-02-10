@@ -179,6 +179,7 @@ def analyze_agent_patterns(posts: list[dict]) -> dict:
         "unique_agents": total_agents,
         "total_posts_analyzed": len(posts),
         "avg_posts_per_agent": round(sum(post_counts) / max(total_agents, 1), 2),
+        "agent_stats": {k: dict(v) for k, v in agents.items()},
         "top_posters": sorted(
             [{"name": k, **v} for k, v in agents.items()],
             key=lambda x: x["posts"],
@@ -331,6 +332,19 @@ def run_full_analysis(data: dict) -> dict:
             seen_ids.add(pid)
             unique_posts.append(p)
 
+    # Include submolt feeds for agent-level patterns
+    submolt_posts = []
+    for posts in data.get("submolt_feeds", {}).values():
+        if isinstance(posts, list):
+            submolt_posts.extend(posts)
+    agent_posts = []
+    agent_seen = set()
+    for p in unique_posts + submolt_posts:
+        pid = p.get("id") or p.get("_id") or id(p)
+        if pid not in agent_seen:
+            agent_seen.add(pid)
+            agent_posts.append(p)
+
     log.info(f"  → Analyzing {len(unique_posts)} unique posts...")
 
     # Run analyses
@@ -343,7 +357,7 @@ def run_full_analysis(data: dict) -> dict:
     submolt_activity = analyze_submolt_activity(data)
     log.info(f"  → Analyzed {len(submolt_activity)} submolts")
 
-    agent_patterns = analyze_agent_patterns(unique_posts)
+    agent_patterns = analyze_agent_patterns(agent_posts)
     log.info(f"  → Found {agent_patterns['unique_agents']} unique agents")
 
     # Try comparing with previous scrape
@@ -374,6 +388,7 @@ def run_full_analysis(data: dict) -> dict:
         "top_posts_window_hours": TOP_WINDOW_HOURS,
         "top_posts_score_weight": SCORE_COMMENT_WEIGHT,
         "agent_patterns": agent_patterns,
+        "agent_stats": agent_patterns.get("agent_stats", {}),
         "trend_changes": trend_changes,
         "metadata": data.get("metadata", {}),
     }

@@ -195,6 +195,11 @@ def _style_hint(kind: str) -> str:
             "Keep it crisp and data-forward.",
             "Summarize the key shifts without hype.",
         ],
+        "report_insight": [
+            "Write a single-sentence insight, practical and specific.",
+            "Call out one noteworthy shift, no hype.",
+            "Keep it short and data-grounded.",
+        ],
         "hot_post_summary": [
             "Summarize the post in one to two sentences, concrete and neutral.",
             "Highlight the core claim and why it matters, no hype.",
@@ -237,6 +242,17 @@ def _build_user_prompt(kind: str, context: dict[str, Any]) -> str:
             f"Sentiment: {context.get('sentiment', '')}\n"
             f"Posts analyzed: {context.get('posts_analyzed', '')}\n"
             f"Unique agents: {context.get('unique_agents', '')}\n"
+        )
+    if kind == "report_insight":
+        return (
+            style_line +
+            "Write one short insight sentence (max 160 characters). "
+            "Use the data points below.\n"
+            f"Top keywords: {context.get('top_keywords', '')}\n"
+            f"Rising trends: {context.get('rising_trends', '')}\n"
+            f"Sentiment: {context.get('sentiment', '')}\n"
+            f"Unique agents: {context.get('unique_agents', '')}\n"
+            f"One-time posters: {context.get('one_time_posters', '')}\n"
         )
     if kind == "hot_post_summary":
         return (
@@ -304,7 +320,7 @@ async def generate_llm_reply(kind: str, context: dict[str, Any]) -> str | None:
 
     # Simple safety: keep to 2 sentences max (1 for report_summary)
     sentences = [s for s in content.split(".") if s.strip()]
-    max_sentences = 1 if kind == "report_summary" else 2
+    max_sentences = 1 if kind in ("report_summary", "report_insight") else 2
     if len(sentences) > max_sentences:
         content = ".".join(sentences[:max_sentences]).strip()
         if not content.endswith("."):

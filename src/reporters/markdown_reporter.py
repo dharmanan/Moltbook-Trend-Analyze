@@ -4,7 +4,7 @@ import json
 import os
 from datetime import datetime
 
-from utils import log, save_report
+from utils import log, save_report, load_previous
 from utils.llm_client import generate_llm_reply
 
 
@@ -215,6 +215,7 @@ async def generate_moltbook_post(analysis: dict, sentiment: dict) -> tuple[str, 
     keywords = analysis.get("keywords", [])[:5]
     pcts = sentiment.get("percentages", {})
     patterns = analysis.get("agent_patterns", {})
+    agent_stats = analysis.get("agent_stats") or patterns.get("agent_stats", {})
     submolts = analysis.get("submolt_activity", [])[:3]
 
     # Dynamic title
@@ -239,11 +240,37 @@ async def generate_moltbook_post(analysis: dict, sentiment: dict) -> tuple[str, 
         sm_list = ", ".join(f"m/{s['submolt']} ({s['post_count']})" for s in submolts)
         content += f"Active Submolts: {sm_list}\n\n"
 
-    # Top agents
-    top_agents = patterns.get("top_posters", [])[:3]
+    # Top agents (change vs previous when possible)
+    prev = load_previous("analyzed", "analysis") or {}
+    prev_stats = prev.get("agent_stats") or prev.get("agent_patterns", {}).get("agent_stats", {})
+    top_agents = []
+    if agent_stats and prev_stats:
+        deltas = []
+        for name, stats in agent_stats.items():
+            prev_item = prev_stats.get(name, {"posts": 0, "upvotes": 0})
+            delta_posts = stats.get("posts", 0) - prev_item.get("posts", 0)
+            delta_upvotes = stats.get("upvotes", 0) - prev_item.get("upvotes", 0)
+            if delta_posts > 0 or delta_upvotes > 0:
+                deltas.append({
+                    "name": name,
+                    "delta_posts": delta_posts,
+                    "delta_upvotes": delta_upvotes,
+                    "posts": stats.get("posts", 0),
+                })
+        deltas.sort(key=lambda x: (-x["delta_posts"], -x["delta_upvotes"], x["name"]))
+        top_agents = deltas[:3]
+    if not top_agents:
+        top_agents = patterns.get("top_posters", [])[:3]
+
     if top_agents:
-        agent_list = ", ".join(f"@{a['name']} ({a['posts']})" for a in top_agents)
-        content += f"Top Agents: {agent_list}\n\n"
+        if "delta_posts" in top_agents[0]:
+            agent_list = ", ".join(
+                f"@{a['name']} (+{a['delta_posts']})" for a in top_agents
+            )
+            content += f"Top Agents (vs last run): {agent_list}\n\n"
+        else:
+            agent_list = ", ".join(f"@{a['name']} ({a['posts']})" for a in top_agents)
+            content += f"Top Agents: {agent_list}\n\n"
 
     # Rising trends
     changes = analysis.get("trend_changes", [])
@@ -267,7 +294,9 @@ async def generate_moltbook_post(analysis: dict, sentiment: dict) -> tuple[str, 
         log.info("LLM summary added to Moltbook post")
 
     # Data-driven insight
-    insight = _generate_insight(analysis, sentiment)
+    insight = await _generate_llm_insight(analysis, sentiment)
+    if not insight:
+        insight = _select_insight(_collect_insights(analysis, sentiment), now, keywords)
     if insight:
         content += f"💡 {insight}\n\n"
 
@@ -299,8 +328,36 @@ async def _generate_llm_summary(analysis: dict, sentiment: dict) -> str:
     return summary or ""
 
 
-def _generate_insight(analysis: dict, sentiment: dict) -> str:
-    """Generate a brief data-driven insight."""
+async def _generate_llm_insight(analysis: dict, sentiment: dict) -> str:
+    keywords = ", ".join(kw["keyword"] for kw in analysis.get("keywords", [])[:5])
+    changes = analysis.get("trend_changes", [])
+    rising = ", ".join([c["keyword"] for c in changes if "rising" in c["trend"]][:3])
+    pcts = sentiment.get("percentages", {})
+    sentiment_line = (
+        f"{pcts.get('positive', 0)}% positive, "
+        f"{pcts.get('neutral', 0)}% neutral, "
+        f"{pcts.get('negative', 0)}% negative"
+    )
+    patterns = analysis.get("agent_patterns", {})
+    context = {
+        "top_keywords": keywords,
+        "rising_trends": rising,
+        "sentiment": sentiment_line,
+        "unique_agents": patterns.get("unique_agents", ""),
+        "one_time_posters": patterns.get("one_time_posters", ""),
+    }
+
+    insight = await generate_llm_reply("report_insight", context)
+    if not insight:
+        return ""
+    insight = insight.strip()
+    if len(insight) > 160:
+        insight = insight[:157].rstrip() + "..."
+    return insight
+
+
+def _collect_insights(analysis: dict, sentiment: dict) -> list[str]:
+    """Collect candidate data-driven insights."""
     pcts = sentiment.get("percentages", {})
     changes = analysis.get("trend_changes", [])
     patterns = analysis.get("agent_patterns", {})
@@ -325,4 +382,12 @@ def _generate_insight(analysis: dict, sentiment: dict) -> str:
     if total > 0 and one_timers / total > 0.7:
         insights.append(f"{round(one_timers/total*100)}% of agents posted only once — high churn or lots of newcomers.")
 
-    return insights[0] if insights else ""
+    return insights
+
+
+def _select_insight(insights: list[str], now: datetime, keywords: list[dict]) -> str:
+    if not insights:
+        return ""
+    seed = f"{now.strftime('%Y%m%d%H')}-{keywords[0]['keyword'] if keywords else ''}"
+    idx = abs(hash(seed)) % len(insights)
+    return insights[idx]
