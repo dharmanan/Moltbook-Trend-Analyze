@@ -9,6 +9,7 @@ Usage:
     python src/main.py --publish             # Publish report to Moltbook
     python src/main.py --reply               # Auto-reply to comments on our posts
     python src/main.py --reply-dry           # Preview replies without posting
+    python src/main.py --hot-post            # Publish a hot post summary
     python src/main.py --full                # Full pipeline: scrape → analyze → report → publish → reply
     python src/main.py --register-moltbook   # Register on Moltbook
     python src/main.py --generate-8004       # Generate ERC-8004 registration file
@@ -35,9 +36,10 @@ from scrapers.moltbook_scraper import (
     register_agent,
     check_status,
     get_me,
+    check_auth_status,
     create_post,
 )
-from analyzers.trend_analyzer import run_full_analysis
+from analyzers.trend_analyzer import run_full_analysis, select_top_posts
 from analyzers.sentiment_analyzer import analyze_sentiment
 from reporters.markdown_reporter import generate_daily_report, generate_moltbook_post
 from reporters.moltbook_publisher import publish_report
@@ -235,6 +237,93 @@ async def cmd_sample_report():
     report = await generate_daily_report(analysis, sentiment, include_sample_note=True)
     print("\n" + report)
     return report
+
+
+async def cmd_hot_post():
+    """Publish a hot post summary based on the last few hours."""
+    log.info("=" * 50)
+    log.info("🔥 MOLTBRIDGE — HOT POST MODE")
+    log.info("=" * 50)
+
+    api_key = os.getenv("MOLTBOOK_API_KEY", "")
+    if not api_key:
+        log.warning("⚠️ MOLTBOOK_API_KEY not set. Skipping hot post.")
+        return None
+
+    auth_status = await check_auth_status()
+    if auth_status == 401:
+        log.warning("⚠️ Account unauthorized (401). Skipping hot post flow.")
+        return None
+
+    settings_path = os.path.join(os.path.dirname(__file__), "..", "config", "settings.json")
+    with open(settings_path, "r") as f:
+        settings = json.load(f)
+
+    reporting_cfg = settings.get("reporting", {})
+    window_hours = int(reporting_cfg.get("hot_post_window_hours", 4))
+    limit = int(reporting_cfg.get("hot_post_limit", 1))
+    report_submolt = settings.get("moltbook", {}).get("report_submolt", "general")
+
+    data = await full_scrape()
+    if not data:
+        log.error("Scrape failed. Aborting hot post.")
+        return None
+
+    unique = _deduplicate_posts(data)
+    top_posts = select_top_posts(
+        unique,
+        data.get("metadata", {}).get("scraped_at"),
+        window_hours,
+        limit,
+    )
+    if not top_posts:
+        log.info("No qualifying posts found for hot post window.")
+        return None
+
+    top_post = top_posts[0]
+    source_id = top_post.get("id")
+    posted_ids = set(get_state("hot_posted_source_ids", []))
+    if source_id and source_id in posted_ids:
+        log.info("Top post already featured. Skipping.")
+        return None
+
+    title = top_post.get("title") or "Untitled"
+    author = top_post.get("author") or "unknown"
+    submolt = top_post.get("submolt") or "general"
+    score = top_post.get("score", 0)
+    upvotes = top_post.get("upvotes", 0)
+    comments = top_post.get("comment_count", 0)
+    author_line = f"Author: @{author}" if author and author != "unknown" else "Author: unknown"
+
+    post_title = f"Hot Post (Last {window_hours}h): {title}"
+    content = (
+        f"Top post from the last {window_hours} hours.\n\n"
+        f"Title: {title}\n"
+        f"{author_line}\n"
+        f"Submolt: m/{submolt}\n"
+        f"Score: {score} (upvotes {upvotes}, comments {comments})\n"
+    )
+
+    result = await create_post(report_submolt, post_title, content)
+    if result and result.get("success"):
+        log.info("✅ Hot post published successfully!")
+        set_state(
+            "last_hot_post",
+            {
+                "source_id": source_id,
+                "title": title,
+                "submolt": submolt,
+                "score": score,
+                "published_at": data.get("metadata", {}).get("scraped_at"),
+            },
+        )
+        if source_id:
+            posted_ids.add(source_id)
+            set_state("hot_posted_source_ids", list(posted_ids)[-200:])
+    else:
+        log.warning(f"⚠️ Failed to publish hot post: {result}")
+
+    return result
 
 
 async def cmd_register_moltbook():
@@ -451,6 +540,7 @@ Examples:
   python src/main.py --publish              # Publish to Moltbook
   python src/main.py --reply                # Auto-reply to comments
   python src/main.py --reply-dry            # Preview replies (no posting)
+    python src/main.py --hot-post             # Publish hot post summary
   python src/main.py --register-moltbook    # Register on Moltbook
   python src/main.py --generate-8004        # Generate ERC-8004 file
   python src/main.py --register-8004 ADDR   # Register on ERC-8004
@@ -466,6 +556,7 @@ Examples:
     parser.add_argument("--publish", action="store_true", help="Publish report to Moltbook")
     parser.add_argument("--reply", action="store_true", help="Auto-reply to comments")
     parser.add_argument("--reply-dry", action="store_true", help="Preview replies (dry run)")
+    parser.add_argument("--hot-post", action="store_true", help="Publish hot post summary")
     parser.add_argument("--engage", action="store_true", help="Comment on trending posts")
     parser.add_argument("--engage-dry", action="store_true", help="Preview engagement (dry run)")
     parser.add_argument("--full", action="store_true", help="Full pipeline")
@@ -494,6 +585,8 @@ Examples:
         asyncio.run(cmd_reply(dry_run=False))
     elif args.reply_dry:
         asyncio.run(cmd_reply(dry_run=True))
+    elif args.hot_post:
+        asyncio.run(cmd_hot_post())
     elif args.engage or args.engage_dry:
         dry = getattr(args, 'engage_dry', False)
         async def _engage():

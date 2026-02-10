@@ -248,11 +248,16 @@ def _post_score(post: dict) -> int:
     return int(upvotes) + int(comments) * SCORE_COMMENT_WEIGHT
 
 
-def _collect_top_posts(posts: list[dict], scraped_at: str | None) -> list[dict]:
+def _collect_top_posts(
+    posts: list[dict],
+    scraped_at: str | None,
+    window_hours: int,
+    limit: int,
+) -> list[dict]:
     if not posts:
         return []
     now = _parse_datetime(scraped_at) or datetime.utcnow()
-    cutoff = now - timedelta(hours=TOP_WINDOW_HOURS)
+    cutoff = now - timedelta(hours=window_hours)
 
     recent_posts = []
     for post in posts:
@@ -279,7 +284,17 @@ def _collect_top_posts(posts: list[dict], scraped_at: str | None) -> list[dict]:
         })
 
     recent_posts.sort(key=lambda item: (-item["score"], item["title"]))
-    return recent_posts[:TOP_POST_LIMIT]
+    return recent_posts[:limit]
+
+
+def select_top_posts(
+    posts: list[dict],
+    scraped_at: str | None,
+    window_hours: int,
+    limit: int,
+) -> list[dict]:
+    """Select top posts within a time window, sorted by score."""
+    return _collect_top_posts(posts, scraped_at, window_hours, limit)
 
 
 # ──────────────────────────────────────────────
@@ -339,7 +354,12 @@ def run_full_analysis(data: dict) -> dict:
         log.info("  → No previous data for comparison (first run)")
 
     # Top conversations in the last window
-    top_posts_recent = _collect_top_posts(unique_posts, data.get("metadata", {}).get("scraped_at"))
+    top_posts_recent = select_top_posts(
+        unique_posts,
+        data.get("metadata", {}).get("scraped_at"),
+        TOP_WINDOW_HOURS,
+        TOP_POST_LIMIT,
+    )
 
     # Build result
     analysis = {

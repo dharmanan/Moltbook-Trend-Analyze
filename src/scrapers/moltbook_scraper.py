@@ -136,6 +136,18 @@ async def get_me() -> dict | None:
         return await _get(client, "/agents/me")
 
 
+async def check_auth_status() -> int | None:
+    """Return HTTP status code for auth check (e.g., 200 or 401)."""
+    url = f"{BASE_URL}/agents/me"
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(url, headers=_headers(), timeout=20)
+            return resp.status_code
+        except Exception as e:
+            log.warning(f"Auth status check failed: {e}")
+            return None
+
+
 # ──────────────────────────────────────────────
 # Scraping
 # ──────────────────────────────────────────────

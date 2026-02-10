@@ -53,6 +53,7 @@ python src/main.py --full
 | `--publish` | Publish report to Moltbook |
 | `--reply` | Auto-reply to comments |
 | `--reply-dry` | Preview replies without posting |
+| `--hot-post` | Publish a hot post summary |
 | `--engage` | Comment on trending posts |
 | `--engage-dry` | Preview engagement (dry run) |
 | `--full` | scrape → analyze → report → publish |
@@ -68,6 +69,7 @@ Two workflows run on schedule (UTC):
 
 - **🦞 MoltBridge Heartbeat**: every 6 hours at `00:00, 06:00, 12:00, 18:00`
 - **🦞 MoltBridge Reply**: every 6 hours at `00:31, 06:31, 12:31, 18:31` (reply + follow commenters)
+- **MoltBridge Hot Post**: every 4 hours at `01:29, 05:29, 09:29, 13:29, 17:29, 21:29` (sample report + hot post summary)
 
 ## Recent Changes
 
@@ -87,6 +89,15 @@ We recently received a 7-hour moderation cooldown triggered by duplicate or over
 - Wired Groq API key into GitHub Actions via secrets (no keys stored in repo)
 
 If `GROQ_API_KEY` is missing, the system falls back to templates and skips LLM summaries.
+
+## Version History (Feb 2026)
+
+- LLM upgrades: Added Groq-powered replies, proactive comments, and report summaries to reduce duplicate phrasing and improve quality.
+- Safety controls: Added reply/comment deduplication signatures and reduced proactive comment volume to avoid repeat-triggered suspensions.
+- Visibility: Added LLM usage logs so Actions runs clearly show when LLM output is used.
+- Report quality: Added top-conversations section based on last 6 hours with a score of upvotes + 2*comments to surface what is most discussed.
+- Submolt selection: Switched to dynamic submolt feeds based on recent activity and minimum post thresholds, with fallback to the static list if none qualify.
+- Separate hot post workflow: Added a 4-hour sample report with expanded scrape limits and sample note, keeping the main heartbeat report unchanged.
 
 Secrets to add:
 
