@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import time
+from datetime import datetime, timedelta
 from typing import Any
 
 import httpx
@@ -23,8 +24,14 @@ _settings_path = os.path.join(os.path.dirname(__file__), "..", "..", "config", "
 with open(_settings_path, "r") as f:
     _settings = json.load(f)
 
-SCRAPE_LIMITS = _settings["moltbook"]["scrape_limits"]
-TARGET_SUBMOLTS = _settings["moltbook"]["target_submolts"]
+_moltbook_settings = _settings["moltbook"]
+SCRAPE_LIMITS = _moltbook_settings["scrape_limits"]
+TARGET_SUBMOLTS = _moltbook_settings["target_submolts"]
+_dynamic_cfg = _moltbook_settings.get("dynamic_submolts", {})
+_dynamic_enabled = bool(_dynamic_cfg.get("enabled", False))
+_dynamic_max = int(_dynamic_cfg.get("max_submolts", 20))
+_dynamic_min_posts = int(_dynamic_cfg.get("min_posts", 3))
+_dynamic_window_hours = int(_dynamic_cfg.get("activity_window_hours", 24))
 
 
 def _headers() -> dict:
@@ -34,6 +41,36 @@ def _headers() -> dict:
         "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
     }
+
+
+def _parse_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _select_dynamic_submolts(submolts: list[dict]) -> list[str]:
+    if not submolts:
+        return []
+    now = datetime.utcnow()
+    cutoff = now - timedelta(hours=_dynamic_window_hours)
+
+    candidates: list[tuple[datetime, int, str]] = []
+    for submolt in submolts:
+        name = submolt.get("name") or ""
+        if not name:
+            continue
+        last_activity = _parse_datetime(submolt.get("last_activity_at"))
+        if last_activity and last_activity < cutoff:
+            continue
+        subscribers = int(submolt.get("subscriber_count", 0) or 0)
+        candidates.append((last_activity or datetime.min, subscribers, name))
+
+    candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    return [name for _, _, name in candidates]
 
 
 # ──────────────────────────────────────────────
@@ -196,11 +233,31 @@ async def full_scrape(scrape_limits: dict | None = None) -> dict:
     await asyncio.sleep(RATE_LIMIT_DELAY)
 
     # 3. Fetch targeted submolt feeds
-    for submolt in TARGET_SUBMOLTS:
-        log.info(f"  → Fetching m/{submolt} feed...")
-        feed = await scrape_submolt_feed(submolt, "hot", limits["submolt_posts"])
-        data["submolt_feeds"][submolt] = feed
-        await asyncio.sleep(RATE_LIMIT_DELAY)
+    if _dynamic_enabled:
+        dynamic_candidates = _select_dynamic_submolts(data["submolts"])
+        selected = []
+        for submolt in dynamic_candidates:
+            if len(selected) >= _dynamic_max:
+                break
+            log.info(f"  → Fetching m/{submolt} feed...")
+            feed = await scrape_submolt_feed(submolt, "hot", limits["submolt_posts"])
+            if feed and len(feed) >= _dynamic_min_posts:
+                data["submolt_feeds"][submolt] = feed
+                selected.append(submolt)
+            await asyncio.sleep(RATE_LIMIT_DELAY)
+        if not selected:
+            log.info("  → Dynamic submolt selection found no active feeds; falling back to static list.")
+            for submolt in TARGET_SUBMOLTS:
+                log.info(f"  → Fetching m/{submolt} feed...")
+                feed = await scrape_submolt_feed(submolt, "hot", limits["submolt_posts"])
+                data["submolt_feeds"][submolt] = feed
+                await asyncio.sleep(RATE_LIMIT_DELAY)
+    else:
+        for submolt in TARGET_SUBMOLTS:
+            log.info(f"  → Fetching m/{submolt} feed...")
+            feed = await scrape_submolt_feed(submolt, "hot", limits["submolt_posts"])
+            data["submolt_feeds"][submolt] = feed
+            await asyncio.sleep(RATE_LIMIT_DELAY)
 
     # 4. Fetch comments for top hot posts (for deeper analysis)
     hot = data["hot_posts"][:10]

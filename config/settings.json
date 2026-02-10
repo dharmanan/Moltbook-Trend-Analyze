@@ -18,6 +18,12 @@
       "top_posts": 75,
       "submolt_posts": 25
     },
+    "dynamic_submolts": {
+      "enabled": true,
+      "max_submolts": 20,
+      "min_posts": 3,
+      "activity_window_hours": 24
+    },
     "target_submolts": [
       "general",
       "todayilearned",
