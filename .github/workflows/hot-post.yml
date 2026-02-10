@@ -4,8 +4,6 @@
 name: MoltBridge Hot Post
 
 on:
-  schedule:
-    - cron: '29 1/4 * * *'
   workflow_dispatch:
 
 jobs:

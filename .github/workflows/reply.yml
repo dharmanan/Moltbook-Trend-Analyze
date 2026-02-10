@@ -4,8 +4,6 @@
 name: 🦞 MoltBridge Reply
 
 on:
-  schedule:
-    - cron: '31 */6 * * *'
   workflow_dispatch:
 
 jobs:

@@ -5,9 +5,6 @@
 name: 🦞 MoltBridge Heartbeat
 
 on:
-  schedule:
-    # Her 6 saatte bir (UTC)
-    - cron: '0 */6 * * *'
   workflow_dispatch:
     inputs:
       mode:
