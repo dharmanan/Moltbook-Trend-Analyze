@@ -8,9 +8,9 @@
     "base_url": "https://www.moltbook.com/api/v1",
     "web_base_url": "https://www.moltbook.com",
     "scrape_limits": {
-      "hot_posts": 50,
-      "new_posts": 50,
-      "top_posts": 50,
+      "hot_posts": 75,
+      "new_posts": 75,
+      "top_posts": 75,
       "submolt_posts": 25
     },
     "sample_scrape_limits": {
