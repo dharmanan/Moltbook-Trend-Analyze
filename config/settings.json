@@ -110,7 +110,7 @@
     }
   },
   "reporting": {
-    "top_window_hours": 6,
+    "top_window_hours": 4,
     "top_post_limit": 5,
     "hot_post_window_hours": 4,
     "hot_post_limit": 1,
