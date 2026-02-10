@@ -117,7 +117,7 @@ async def cmd_report():
         return None
 
     sentiment = analysis.get("sentiment", {})
-    report = await generate_daily_report(analysis, sentiment)
+    report = await generate_daily_report(analysis, sentiment, include_sample_note=False)
     print("\n" + report)
     return report
 
@@ -167,7 +167,7 @@ async def cmd_full():
     analysis["sentiment"] = sentiment
 
     # Step 3: Report
-    report = await generate_daily_report(analysis, sentiment)
+    report = await generate_daily_report(analysis, sentiment, include_sample_note=False)
     log.info("📝 Report generated")
 
     # Step 4: Publish
@@ -205,6 +205,36 @@ async def cmd_full():
 
     log.info("✅ Full pipeline complete!")
     return analysis
+
+
+async def cmd_sample_report():
+    """Generate a sample report with expanded limits and a sample note."""
+    log.info("=" * 50)
+    log.info("🧪 MOLTBRIDGE — SAMPLE REPORT MODE")
+    log.info("=" * 50)
+
+    settings_path = os.path.join(os.path.dirname(__file__), "..", "config", "settings.json")
+    with open(settings_path, "r") as f:
+        settings = json.load(f)
+
+    sample_limits = settings.get("moltbook", {}).get("sample_scrape_limits")
+    if not sample_limits:
+        log.error("Sample scrape limits not configured.")
+        return None
+
+    data = await full_scrape(scrape_limits=sample_limits)
+    if not data:
+        log.error("Scrape failed. Aborting sample report.")
+        return None
+
+    analysis = run_full_analysis(data)
+    unique = _deduplicate_posts(data)
+    sentiment = analyze_sentiment(unique)
+    analysis["sentiment"] = sentiment
+
+    report = await generate_daily_report(analysis, sentiment, include_sample_note=True)
+    print("\n" + report)
+    return report
 
 
 async def cmd_register_moltbook():
@@ -425,6 +455,7 @@ Examples:
   python src/main.py --generate-8004        # Generate ERC-8004 file
   python src/main.py --register-8004 ADDR   # Register on ERC-8004
   python src/main.py --heartbeat            # Run heartbeat cycle
+    python src/main.py --sample-report        # Sample report with expanded limits
   python src/main.py --status               # Show agent status
         """,
     )
@@ -443,6 +474,7 @@ Examples:
     parser.add_argument("--register-8004", type=str, metavar="ADDR", help="Register on ERC-8004")
     parser.add_argument("--status", action="store_true", help="Show agent status")
     parser.add_argument("--heartbeat", action="store_true", help="Run heartbeat cycle")
+    parser.add_argument("--sample-report", action="store_true", help="Generate sample report")
 
     args = parser.parse_args()
 
@@ -484,6 +516,8 @@ Examples:
         asyncio.run(cmd_status())
     elif args.heartbeat:
         asyncio.run(cmd_heartbeat())
+    elif args.sample_report:
+        asyncio.run(cmd_sample_report())
 
 
 if __name__ == "__main__":

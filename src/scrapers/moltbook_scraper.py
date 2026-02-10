@@ -151,7 +151,7 @@ async def scrape_post_comments(post_id: str, sort: str = "top") -> list[dict]:
         return result if isinstance(result, list) else []
 
 
-async def full_scrape() -> dict:
+async def full_scrape(scrape_limits: dict | None = None) -> dict:
     """
     Perform a complete scrape of Moltbook.
 
@@ -163,6 +163,7 @@ async def full_scrape() -> dict:
     - metadata (timestamp, counts)
     """
     log.info("🦞 Starting full Moltbook scrape...")
+    limits = scrape_limits or SCRAPE_LIMITS
     data = {
         "hot_posts": [],
         "new_posts": [],
@@ -172,21 +173,21 @@ async def full_scrape() -> dict:
         "top_comments": {},
         "metadata": {
             "scraped_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "scrape_limits": SCRAPE_LIMITS,
+            "scrape_limits": limits,
         },
     }
 
     # 1. Fetch main feeds
     log.info("  → Fetching hot posts...")
-    data["hot_posts"] = await scrape_posts("hot", SCRAPE_LIMITS["hot_posts"])
+    data["hot_posts"] = await scrape_posts("hot", limits["hot_posts"])
     await asyncio.sleep(RATE_LIMIT_DELAY)
 
     log.info("  → Fetching new posts...")
-    data["new_posts"] = await scrape_posts("new", SCRAPE_LIMITS["new_posts"])
+    data["new_posts"] = await scrape_posts("new", limits["new_posts"])
     await asyncio.sleep(RATE_LIMIT_DELAY)
 
     log.info("  → Fetching top posts...")
-    data["top_posts"] = await scrape_posts("top", SCRAPE_LIMITS["top_posts"])
+    data["top_posts"] = await scrape_posts("top", limits["top_posts"])
     await asyncio.sleep(RATE_LIMIT_DELAY)
 
     # 2. Fetch submolts
@@ -197,7 +198,7 @@ async def full_scrape() -> dict:
     # 3. Fetch targeted submolt feeds
     for submolt in TARGET_SUBMOLTS:
         log.info(f"  → Fetching m/{submolt} feed...")
-        feed = await scrape_submolt_feed(submolt, "hot", SCRAPE_LIMITS["submolt_posts"])
+        feed = await scrape_submolt_feed(submolt, "hot", limits["submolt_posts"])
         data["submolt_feeds"][submolt] = feed
         await asyncio.sleep(RATE_LIMIT_DELAY)
 

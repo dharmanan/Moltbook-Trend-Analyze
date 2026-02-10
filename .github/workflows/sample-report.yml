@@ -1,0 +1,55 @@
+# MoltBridge Agent — Sample Report
+# Runs every 4 hours, separate from the main heartbeat
+
+name: 🧪 MoltBridge Sample Report
+
+on:
+  schedule:
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+
+jobs:
+  sample-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 📦 Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: 📂 Restore data cache
+        uses: actions/cache@v4
+        with:
+          path: data/
+          key: moltbridge-data-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            moltbridge-data-${{ github.ref_name }}-
+            moltbridge-data-
+
+      - name: 🧪 Run sample report
+        env:
+          MOLTBOOK_API_KEY: ${{ secrets.MOLTBOOK_API_KEY }}
+          MOLTBOOK_AGENT_NAME: ${{ secrets.MOLTBOOK_AGENT_NAME || 'MoltBridgeAgent' }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          LOG_LEVEL: INFO
+        run: python src/main.py --sample-report
+
+      - name: 💾 Save data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: moltbridge-sample-report-${{ github.run_number }}
+          path: |
+            data/reports/
+            data/analyzed/
+            data/state/
+          retention-days: 30
