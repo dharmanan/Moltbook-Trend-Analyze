@@ -2,6 +2,8 @@
 
 import json
 import os
+import re
+from datetime import datetime
 from typing import Any
 
 import httpx
@@ -17,6 +19,9 @@ with open(_SETTINGS_PATH, "r") as f:
     _settings = json.load(f)
 
 _LLM_SETTINGS = _settings.get("llm", {})
+
+_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data")
+_HISTORY_PATH = os.path.join(_DATA_DIR, "llm_history.jsonl")
 
 
 def _is_enabled() -> bool:
@@ -41,6 +46,126 @@ def _get_max_tokens() -> int:
 
 def _get_groq_key() -> str:
     return os.getenv("GROQ_API_KEY", "")
+
+
+def _memory_settings() -> dict:
+    return _LLM_SETTINGS.get("memory", {})
+
+
+def _memory_enabled() -> bool:
+    return bool(_memory_settings().get("enabled", False))
+
+
+def _memory_max_items() -> int:
+    return int(_memory_settings().get("max_items", 500))
+
+
+def _memory_examples() -> int:
+    return int(_memory_settings().get("examples", 2))
+
+
+def _ensure_history_dir() -> None:
+    os.makedirs(_DATA_DIR, exist_ok=True)
+
+
+def _context_text(context: dict[str, Any]) -> str:
+    parts = []
+    for key in sorted(context.keys()):
+        value = context.get(key, "")
+        if value:
+            parts.append(f"{key}: {value}")
+    return " | ".join(parts)
+
+
+def _trim_context(context: dict[str, Any], limit: int = 500) -> dict[str, Any]:
+    trimmed: dict[str, Any] = {}
+    for key, value in context.items():
+        if isinstance(value, str) and len(value) > limit:
+            trimmed[key] = value[:limit]
+        else:
+            trimmed[key] = value
+    return trimmed
+
+
+def _tokenize(text: str) -> set[str]:
+    tokens = re.findall(r"[a-zA-Z][a-zA-Z0-9_-]{2,}", text.lower())
+    return set(tokens)
+
+
+def _load_history() -> list[dict[str, Any]]:
+    if not _memory_enabled() or not os.path.exists(_HISTORY_PATH):
+        return []
+    items: list[dict[str, Any]] = []
+    with open(_HISTORY_PATH, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                items.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return items[-_memory_max_items():]
+
+
+def _write_history(items: list[dict[str, Any]]) -> None:
+    _ensure_history_dir()
+    with open(_HISTORY_PATH, "w", encoding="utf-8") as f:
+        for item in items[-_memory_max_items():]:
+            f.write(json.dumps(item, ensure_ascii=False) + "\n")
+
+
+def _record_history(kind: str, context: dict[str, Any], response: str) -> None:
+    if not _memory_enabled():
+        return
+    items = _load_history()
+    safe_context = _trim_context(context)
+    entry = {
+        "ts": datetime.utcnow().isoformat() + "Z",
+        "kind": kind,
+        "context": safe_context,
+        "context_text": _context_text(safe_context),
+        "response": response,
+    }
+    items.append(entry)
+    _write_history(items)
+
+
+def _select_examples(kind: str, context: dict[str, Any]) -> list[dict[str, Any]]:
+    if not _memory_enabled():
+        return []
+    items = [i for i in _load_history() if i.get("kind") == kind]
+    if not items:
+        return []
+
+    target_tokens = _tokenize(_context_text(context))
+    if not target_tokens:
+        return []
+
+    scored: list[tuple[int, dict[str, Any]]] = []
+    for item in items:
+        item_tokens = _tokenize(item.get("context_text", ""))
+        if not item_tokens:
+            continue
+        score = len(target_tokens & item_tokens)
+        if score > 0:
+            scored.append((score, item))
+
+    scored.sort(key=lambda x: (-x[0], x[1].get("ts", "")))
+    top_n = _memory_examples()
+    return [item for _, item in scored[:top_n]]
+
+
+def _format_examples(examples: list[dict[str, Any]]) -> str:
+    if not examples:
+        return ""
+    lines = ["Reference examples (style only):"]
+    for ex in examples:
+        ctx = (ex.get("context_text") or "")[:200]
+        resp = (ex.get("response") or "")[:200]
+        lines.append(f"- Input: {ctx}")
+        lines.append(f"  Output: {resp}")
+    return "\n".join(lines)
 
 
 def _system_prompt() -> str:
@@ -97,13 +222,18 @@ async def generate_llm_reply(kind: str, context: dict[str, Any]) -> str | None:
 
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    user_prompt = _build_user_prompt(kind, context)
+    examples = _format_examples(_select_examples(kind, context))
+    if examples:
+        user_prompt = f"{user_prompt}\n{examples}"
+
     payload = {
         "model": _get_model(),
         "temperature": _get_temperature(),
         "max_tokens": _get_max_tokens(),
         "messages": [
             {"role": "system", "content": _system_prompt()},
-            {"role": "user", "content": _build_user_prompt(kind, context)},
+            {"role": "user", "content": user_prompt},
         ],
     }
 
@@ -135,5 +265,6 @@ async def generate_llm_reply(kind: str, context: dict[str, Any]) -> str | None:
         if not content.endswith("."):
             content += "."
 
+    _record_history(kind, context, content)
     log.info(f"LLM reply generated ({kind})")
     return content
