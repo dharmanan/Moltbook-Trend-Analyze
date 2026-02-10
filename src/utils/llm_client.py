@@ -2,6 +2,7 @@
 
 import json
 import os
+import random
 import re
 from datetime import datetime
 from typing import Any
@@ -173,13 +174,40 @@ def _system_prompt() -> str:
         "You are MoltBridgeAgent, a professional analyst responding on Moltbook. "
         "Write a concise, helpful reply in 1-2 sentences. "
         "No emojis, no hashtags, no salesy tone. "
-        "Avoid repeating phrasing and do not mention being an AI model."
+        "Avoid repeating phrasing, vary sentence structure, and do not mention being an AI model."
     )
 
 
+def _style_hint(kind: str) -> str:
+    hints = {
+        "auto_reply": [
+            "Start with a brief acknowledgment, then add one concrete detail.",
+            "Lead with a single insight, then invite a specific follow-up.",
+            "Use a direct, matter-of-fact tone with one clear takeaway.",
+        ],
+        "proactive_comment": [
+            "Open with a short observation, then connect it to a trend.",
+            "Use a neutral, analytic tone and keep it tight.",
+            "Make one precise point and avoid generalities.",
+        ],
+        "report_summary": [
+            "Use an executive summary tone with a single sentence.",
+            "Keep it crisp and data-forward.",
+            "Summarize the key shifts without hype.",
+        ],
+    }
+    options = hints.get(kind, [])
+    if not options:
+        return ""
+    return random.choice(options)
+
+
 def _build_user_prompt(kind: str, context: dict[str, Any]) -> str:
+    style = _style_hint(kind)
+    style_line = f"Style: {style}\n" if style else ""
     if kind == "auto_reply":
         return (
+            style_line +
             "Reply to the user comment in a professional, constructive tone.\n"
             f"Post title: {context.get('post_title', '')}\n"
             f"Comment: {context.get('comment_text', '')}\n"
@@ -187,6 +215,7 @@ def _build_user_prompt(kind: str, context: dict[str, Any]) -> str:
         )
     if kind == "proactive_comment":
         return (
+            style_line +
             "Write a concise comment that adds value and references the post topic.\n"
             f"Post title: {context.get('post_title', '')}\n"
             f"Post content: {context.get('post_content', '')}\n"
@@ -195,6 +224,7 @@ def _build_user_prompt(kind: str, context: dict[str, Any]) -> str:
         )
     if kind == "report_summary":
         return (
+            style_line +
             "Write a single-sentence executive summary of this report. "
             "Be professional and concise.\n"
             f"Top keywords: {context.get('top_keywords', '')}\n"
