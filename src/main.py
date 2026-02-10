@@ -22,6 +22,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import sys
 
 # Ensure src is in path
@@ -31,6 +32,7 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 from utils import log, save_raw, load_latest, get_state, set_state
+from utils.llm_client import generate_llm_reply
 from scrapers.moltbook_scraper import (
     full_scrape,
     register_agent,
@@ -239,21 +241,22 @@ async def cmd_sample_report():
     return report
 
 
-async def cmd_hot_post():
+async def cmd_hot_post(dry_run: bool = False):
     """Publish a hot post summary based on the last few hours."""
     log.info("=" * 50)
-    log.info("🔥 MOLTBRIDGE — HOT POST MODE")
+    log.info(f"🔥 MOLTBRIDGE — HOT POST MODE {'(DRY RUN)' if dry_run else ''}")
     log.info("=" * 50)
 
     api_key = os.getenv("MOLTBOOK_API_KEY", "")
-    if not api_key:
-        log.warning("⚠️ MOLTBOOK_API_KEY not set. Skipping hot post.")
-        return None
+    if not dry_run:
+        if not api_key:
+            log.warning("⚠️ MOLTBOOK_API_KEY not set. Skipping hot post.")
+            return None
 
-    auth_status = await check_auth_status()
-    if auth_status == 401:
-        log.warning("⚠️ Account unauthorized (401). Skipping hot post flow.")
-        return None
+        auth_status = await check_auth_status()
+        if auth_status == 401:
+            log.warning("⚠️ Account unauthorized (401). Skipping hot post flow.")
+            return None
 
     settings_path = os.path.join(os.path.dirname(__file__), "..", "config", "settings.json")
     with open(settings_path, "r") as f:
@@ -262,9 +265,13 @@ async def cmd_hot_post():
     reporting_cfg = settings.get("reporting", {})
     window_hours = int(reporting_cfg.get("hot_post_window_hours", 4))
     limit = int(reporting_cfg.get("hot_post_limit", 1))
-    report_submolt = settings.get("moltbook", {}).get("report_submolt", "general")
+    moltbook_cfg = settings.get("moltbook", {})
+    report_submolt = moltbook_cfg.get("report_submolt", "general")
+    web_base_url = str(moltbook_cfg.get("web_base_url", "https://www.moltbook.com")).rstrip("/")
 
-    data = await full_scrape()
+    data = load_latest("raw", "full_scrape")
+    if not data:
+        data = await full_scrape()
     if not data:
         log.error("Scrape failed. Aborting hot post.")
         return None
@@ -294,15 +301,64 @@ async def cmd_hot_post():
     upvotes = top_post.get("upvotes", 0)
     comments = top_post.get("comment_count", 0)
     author_line = f"Author: @{author}" if author and author != "unknown" else "Author: unknown"
+    raw_content = top_post.get("content") or top_post.get("body") or top_post.get("text") or ""
+    post_url = top_post.get("url") or (f"{web_base_url}/post/{source_id}" if source_id else "")
+
+    def _summary_text(text: str, max_sentences: int = 2, max_chars: int = 280) -> str:
+        cleaned = re.sub(r"\s+", " ", text.strip())
+        if not cleaned:
+            return ""
+        sentences = re.split(r"(?<=[.!?])\s+", cleaned)
+        summary = " ".join(sentences[:max_sentences])
+        if len(summary) > max_chars:
+            summary = summary[: max_chars - 3].rstrip() + "..."
+        return summary
+
+    def _excerpt_text(text: str, max_chars: int = 360) -> str:
+        cleaned = re.sub(r"\s+", " ", text.strip())
+        if len(cleaned) <= max_chars:
+            return cleaned
+        return cleaned[: max_chars - 3].rstrip() + "..."
+
+    summary_text = _summary_text(raw_content)
+    excerpt_text = _excerpt_text(raw_content)
+
+    llm_summary = await generate_llm_reply(
+        "hot_post_summary",
+        {
+            "post_title": title,
+            "author": author,
+            "submolt": submolt,
+            "post_content": raw_content,
+        },
+    )
+    if llm_summary:
+        summary_text = llm_summary.strip()
+        if len(summary_text) > 200:
+            summary_text = summary_text[:197].rstrip() + "..."
 
     post_title = f"Hot Post (Last {window_hours}h): {title}"
-    content = (
-        f"Top post from the last {window_hours} hours.\n\n"
-        f"Title: {title}\n"
-        f"{author_line}\n"
-        f"Submolt: m/{submolt}\n"
-        f"Score: {score} (upvotes {upvotes}, comments {comments})\n"
-    )
+    content_parts = [
+        f"Top post from the last {window_hours} hours.",
+        "",
+        f"Title: {title}",
+        author_line,
+        f"Submolt: m/{submolt}",
+        f"Score: {score} (upvotes {upvotes}, comments {comments})",
+    ]
+    if post_url:
+        content_parts.append(f"Link: {post_url}")
+    if summary_text:
+        content_parts.extend(["", "Summary:", summary_text])
+    if excerpt_text:
+        content_parts.extend(["", "Excerpt:", excerpt_text])
+
+    content = "\n".join(content_parts) + "\n"
+
+    if dry_run:
+        log.info("[DRY RUN] Hot post content preview:")
+        print("\n" + post_title + "\n\n" + content)
+        return {"dry_run": True, "title": post_title, "content": content}
 
     result = await create_post(report_submolt, post_title, content)
     if result and result.get("success"):
@@ -557,6 +613,7 @@ Examples:
     parser.add_argument("--reply", action="store_true", help="Auto-reply to comments")
     parser.add_argument("--reply-dry", action="store_true", help="Preview replies (dry run)")
     parser.add_argument("--hot-post", action="store_true", help="Publish hot post summary")
+    parser.add_argument("--hot-post-dry", action="store_true", help="Preview hot post summary")
     parser.add_argument("--engage", action="store_true", help="Comment on trending posts")
     parser.add_argument("--engage-dry", action="store_true", help="Preview engagement (dry run)")
     parser.add_argument("--full", action="store_true", help="Full pipeline")
@@ -585,8 +642,8 @@ Examples:
         asyncio.run(cmd_reply(dry_run=False))
     elif args.reply_dry:
         asyncio.run(cmd_reply(dry_run=True))
-    elif args.hot_post:
-        asyncio.run(cmd_hot_post())
+    elif args.hot_post or args.hot_post_dry:
+        asyncio.run(cmd_hot_post(dry_run=bool(args.hot_post_dry)))
     elif args.engage or args.engage_dry:
         dry = getattr(args, 'engage_dry', False)
         async def _engage():

@@ -6,6 +6,7 @@
   },
   "moltbook": {
     "base_url": "https://www.moltbook.com/api/v1",
+    "web_base_url": "https://www.moltbook.com",
     "scrape_limits": {
       "hot_posts": 50,
       "new_posts": 50,

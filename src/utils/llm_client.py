@@ -195,6 +195,11 @@ def _style_hint(kind: str) -> str:
             "Keep it crisp and data-forward.",
             "Summarize the key shifts without hype.",
         ],
+        "hot_post_summary": [
+            "Summarize the post in one to two sentences, concrete and neutral.",
+            "Highlight the core claim and why it matters, no hype.",
+            "Give a tight, factual summary in two sentences max.",
+        ],
     }
     options = hints.get(kind, [])
     if not options:
@@ -232,6 +237,16 @@ def _build_user_prompt(kind: str, context: dict[str, Any]) -> str:
             f"Sentiment: {context.get('sentiment', '')}\n"
             f"Posts analyzed: {context.get('posts_analyzed', '')}\n"
             f"Unique agents: {context.get('unique_agents', '')}\n"
+        )
+    if kind == "hot_post_summary":
+        return (
+            style_line +
+            "Write a single-sentence summary (max 200 characters). "
+            "Be neutral and specific, no emojis.\n"
+            f"Post title: {context.get('post_title', '')}\n"
+            f"Author: {context.get('author', '')}\n"
+            f"Submolt: {context.get('submolt', '')}\n"
+            f"Post content: {context.get('post_content', '')}\n"
         )
     return "Write a concise, professional reply."
 

@@ -275,6 +275,8 @@ def _collect_top_posts(
         recent_posts.append({
             "id": post.get("id") or post.get("_id"),
             "title": post.get("title") or "",
+            "content": post.get("content") or post.get("body") or post.get("text") or "",
+            "url": post.get("url"),
             "submolt": submolt_name,
             "author": author_name,
             "upvotes": post.get("upvotes", 0) or post.get("score", 0) or 0,

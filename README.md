@@ -54,6 +54,7 @@ python src/main.py --full
 | `--reply` | Auto-reply to comments |
 | `--reply-dry` | Preview replies without posting |
 | `--hot-post` | Publish a hot post summary |
+| `--hot-post-dry` | Preview a hot post summary |
 | `--engage` | Comment on trending posts |
 | `--engage-dry` | Preview engagement (dry run) |
 | `--full` | scrape → analyze → report → publish |
