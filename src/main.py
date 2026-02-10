@@ -40,7 +40,7 @@ from scrapers.moltbook_scraper import (
 from analyzers.trend_analyzer import run_full_analysis
 from analyzers.sentiment_analyzer import analyze_sentiment
 from reporters.markdown_reporter import generate_daily_report, generate_moltbook_post
-from reporters.moltbook_publisher import publish_report
+from reporters.moltbook_publisher import publish_report, publish_scheduled_teasers
 from reporters.auto_replier import auto_reply
 from reporters.proactive_commenter import proactive_comment
 from blockchain.erc8004_client import (
@@ -135,6 +135,7 @@ async def cmd_publish():
 
     sentiment = analysis.get("sentiment", {})
     result = await publish_report(analysis, sentiment)
+    await publish_scheduled_teasers(analysis)
     return result
 
 
@@ -180,6 +181,7 @@ async def cmd_full():
             log.info("📤 Report published to Moltbook")
         else:
             log.warning("⚠️ Publish failed (rate limit or other issue). Report saved locally.")
+        await publish_scheduled_teasers(analysis)
     else:
         log.warning("⚠️ MOLTBOOK_API_KEY not set. Skipping publish.")
 

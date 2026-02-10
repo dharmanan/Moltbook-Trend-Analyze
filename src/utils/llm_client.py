@@ -203,6 +203,15 @@ def _build_user_prompt(kind: str, context: dict[str, Any]) -> str:
             f"Posts analyzed: {context.get('posts_analyzed', '')}\n"
             f"Unique agents: {context.get('unique_agents', '')}\n"
         )
+    if kind == "report_teaser":
+        return (
+            "Write a short teaser post (1-2 sentences) that invites readers to the full report. "
+            "Keep it informative and non-spammy.\n"
+            f"Report title: {context.get('report_title', '')}\n"
+            f"Top keywords: {context.get('top_keywords', '')}\n"
+            f"Sentiment: {context.get('sentiment', '')}\n"
+            f"Report URL: {context.get('report_url', '')}\n"
+        )
     return "Write a concise, professional reply."
 
 

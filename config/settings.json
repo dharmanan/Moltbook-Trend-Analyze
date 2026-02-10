@@ -6,6 +6,7 @@
   },
   "moltbook": {
     "base_url": "https://www.moltbook.com/api/v1",
+    "report_url_template": "https://www.moltbook.com/posts/{id}",
     "scrape_limits": {
       "hot_posts": 50,
       "new_posts": 50,
@@ -46,7 +47,13 @@
       "quantmolt"
     ],
     "report_submolt": "agentintelligence",
-    "rate_limit_delay_seconds": 2
+    "rate_limit_delay_seconds": 2,
+    "teasers": {
+      "enabled": true,
+      "delay_minutes": 30,
+      "max_per_run": 1,
+      "top_submolts": 3
+    }
   },
   "llm": {
     "enabled": true,
