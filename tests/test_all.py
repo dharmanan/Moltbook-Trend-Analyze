@@ -25,6 +25,33 @@ class TestScraperHelpers:
         from scrapers.moltbook_scraper import BASE_URL
         assert "www.moltbook.com" in BASE_URL
 
+    def test_auth_block_detection_for_suspension(self):
+        """Suspended-account responses should be detected and surfaced."""
+        from scrapers.moltbook_scraper import auth_block_reason, is_auth_blocked
+
+        result = {
+            "success": False,
+            "status_code": 401,
+            "error": "Account suspended",
+            "hint": "Your account is suspended for 7 days.",
+        }
+
+        assert is_auth_blocked(result) is True
+        assert "Account suspended" in auth_block_reason(result)
+
+    def test_auth_block_detection_ignores_non_auth_failures(self):
+        """Generic API failures should not be treated as auth blocks."""
+        from scrapers.moltbook_scraper import is_auth_blocked
+
+        result = {
+            "success": False,
+            "status_code": 429,
+            "error": "Rate limited",
+            "message": "Too many requests",
+        }
+
+        assert is_auth_blocked(result) is False
+
 
 class TestAnalyzer:
     """Test trend analyzer functions."""

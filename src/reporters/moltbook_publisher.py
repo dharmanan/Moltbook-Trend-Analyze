@@ -4,7 +4,7 @@ import asyncio
 import json
 import os
 
-from scrapers.moltbook_scraper import create_post
+from scrapers.moltbook_scraper import create_post, auth_block_reason, is_auth_blocked
 from reporters.markdown_reporter import generate_moltbook_post
 from utils import log, get_state, set_state
 
@@ -48,6 +48,8 @@ async def publish_report(analysis: dict, sentiment: dict) -> dict | None:
             if post_id not in published_ids:
                 published_ids.append(post_id)
             set_state("published_post_ids", published_ids[-50:])
+    elif is_auth_blocked(result):
+        log.warning(f"⚠️ Publish blocked by Moltbook auth state: {auth_block_reason(result)}")
     else:
         log.warning(f"⚠️ Failed to publish report: {result}")
 

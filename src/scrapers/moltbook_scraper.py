@@ -103,11 +103,86 @@ async def _post(client: httpx.AsyncClient, path: str, data: dict) -> dict | None
         resp.raise_for_status()
         return resp.json()
     except httpx.HTTPStatusError as e:
-        log.warning(f"HTTP {e.response.status_code} for POST {url}: {e.response.text[:200]}")
-        return None
+        response_text = e.response.text[:500]
+        log.warning(f"HTTP {e.response.status_code} for POST {url}: {response_text}")
+        error_payload: dict[str, Any] = {
+            "success": False,
+            "status_code": e.response.status_code,
+            "error": "http_error",
+            "message": response_text,
+            "url": url,
+        }
+        try:
+            parsed = e.response.json()
+            if isinstance(parsed, dict):
+                error_payload.update(parsed)
+        except Exception:
+            pass
+        return error_payload
     except Exception as e:
         log.error(f"POST request failed for {url}: {e}")
         return None
+
+
+def is_auth_blocked(result: dict | None) -> bool:
+    """Return True when a response indicates unauthorized or suspended auth."""
+    if not result:
+        return False
+
+    status_code = result.get("status_code")
+    error_text = " ".join(
+        str(result.get(key, ""))
+        for key in ("error", "hint", "message")
+    ).lower()
+    return status_code == 401 or "suspended" in error_text or "unauthorized" in error_text
+
+
+def auth_block_reason(result: dict | None) -> str:
+    """Return a short human-readable auth block reason."""
+    if not result:
+        return "authentication failed"
+
+    parts = []
+    error = result.get("error")
+    hint = result.get("hint")
+    message = result.get("message")
+
+    if error and str(error).lower() != "http_error":
+        parts.append(str(error))
+    if hint:
+        parts.append(str(hint))
+    elif message:
+        parts.append(str(message))
+
+    return " | ".join(parts) if parts else "authentication failed"
+
+
+async def get_auth_block_status() -> dict | None:
+    """Return details when the current API key is unauthorized or suspended."""
+    url = f"{BASE_URL}/agents/me"
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(url, headers=_headers(), timeout=20)
+            if resp.status_code == 200:
+                return None
+
+            response_text = resp.text[:500]
+            result: dict[str, Any] = {
+                "success": False,
+                "status_code": resp.status_code,
+                "message": response_text,
+                "url": url,
+            }
+            try:
+                parsed = resp.json()
+                if isinstance(parsed, dict):
+                    result.update(parsed)
+            except Exception:
+                pass
+            return result if is_auth_blocked(result) else None
+        except Exception as e:
+            log.warning(f"Auth status check failed: {e}")
+            return None
 
 
 # ──────────────────────────────────────────────

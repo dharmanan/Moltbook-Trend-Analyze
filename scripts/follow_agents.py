@@ -16,7 +16,11 @@ SRC_DIR = os.path.join(SCRIPT_DIR, "..", "src")
 sys.path.insert(0, os.path.abspath(SRC_DIR))
 
 from utils import log, load_latest, get_state, set_state  # noqa: E402
-from scrapers.moltbook_scraper import scrape_post_comments  # noqa: E402
+from scrapers.moltbook_scraper import (  # noqa: E402
+    scrape_post_comments,
+    auth_block_reason,
+    get_auth_block_status,
+)
 from reporters.auto_replier import get_my_posts  # noqa: E402
 
 
@@ -111,6 +115,11 @@ async def _follow_agents(agent_names: Iterable[str], dry_run: bool) -> dict:
                     else:
                         failed.append(name)
                         log.warning(f"Follow failed for {name}: {data}")
+                elif resp.status_code == 401:
+                    failed.append(name)
+                    detail = resp.text[:300]
+                    log.warning(f"Follow stopped for {name}: HTTP 401 {detail}")
+                    break
                 else:
                     failed.append(name)
                     log.warning(f"Follow failed for {name}: HTTP {resp.status_code}")
@@ -169,6 +178,14 @@ async def main() -> None:
     if not key:
         log.error("MOLTBOOK_API_KEY is not set. Load .env before running.")
         return
+
+    if not args.dry_run:
+        auth_block = await get_auth_block_status()
+        if auth_block:
+            log.warning(
+                f"Follow skipped: Moltbook auth blocked ({auth_block_reason(auth_block)})"
+            )
+            return
 
     result = await follow_from_latest(
         top_agents=args.top_agents,

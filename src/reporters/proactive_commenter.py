@@ -11,6 +11,9 @@ from scrapers.moltbook_scraper import (
     scrape_post_comments,
     scrape_submolt_feed,
     create_comment,
+    auth_block_reason,
+    get_auth_block_status,
+    is_auth_blocked,
 )
 from utils import log, get_state, set_state
 from utils.llm_client import generate_llm_reply
@@ -237,6 +240,18 @@ async def proactive_comment(
     """
     log.info(f"🗣️ Proactive commenting starting (max {max_comments}, dry_run={dry_run})...")
 
+    if not dry_run:
+        auth_block = await get_auth_block_status()
+        if auth_block:
+            log.warning(
+                f"⚠️ Proactive commenting skipped: Moltbook auth blocked ({auth_block_reason(auth_block)})"
+            )
+            return {
+                "comments_sent": 0,
+                "posts_evaluated": 0,
+                "skipped_reason": "auth_blocked",
+            }
+
     # Load previously commented post IDs
     commented_ids = set(get_state("proactive_comment_ids", []))
     comment_signatures = set(get_state("proactive_comment_signatures", []))
@@ -271,9 +286,10 @@ async def proactive_comment(
         return {"comments_sent": 0, "posts_evaluated": 0}
 
     comments_sent = 0
+    auth_blocked = False
 
     for post in candidates:
-        if comments_sent >= max_comments:
+        if comments_sent >= max_comments or auth_blocked:
             break
 
         if not _should_comment(post, commented_ids):
@@ -359,6 +375,12 @@ async def proactive_comment(
             if result:
                 log.info(f"    ✅ Comment posted!")
                 comment_signatures.add(signature)
+            elif is_auth_blocked(result):
+                log.warning(
+                    f"    ⚠️ Commenting stopped: Moltbook auth blocked ({auth_block_reason(result)})"
+                )
+                auth_blocked = True
+                break
             else:
                 log.warning(f"    ⚠️ Comment failed")
             await asyncio.sleep(5)  # Rate limit between comments

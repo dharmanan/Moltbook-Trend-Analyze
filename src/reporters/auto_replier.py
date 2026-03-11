@@ -13,6 +13,9 @@ from scrapers.moltbook_scraper import (
     _get,
     _headers,
     BASE_URL,
+    auth_block_reason,
+    get_auth_block_status,
+    is_auth_blocked,
 )
 from utils import log, get_state, set_state
 from utils.llm_client import generate_llm_reply
@@ -292,6 +295,18 @@ async def auto_reply(max_replies: int = 5, dry_run: bool = False) -> dict:
     agent_name = os.getenv("MOLTBOOK_AGENT_NAME", "MoltBridgeAgent")
     log.info(f"💬 Auto-reply starting (max {max_replies} replies, dry_run={dry_run})...")
 
+    if not dry_run:
+        auth_block = await get_auth_block_status()
+        if auth_block:
+            log.warning(
+                f"⚠️ Auto-reply skipped: Moltbook auth blocked ({auth_block_reason(auth_block)})"
+            )
+            return {
+                "replies_sent": 0,
+                "posts_checked": 0,
+                "skipped_reason": "auth_blocked",
+            }
+
     # Load previously replied comment IDs
     replied_ids = set(get_state("replied_comment_ids", []))
     replied_signatures = set(get_state("replied_signatures", []))
@@ -307,9 +322,10 @@ async def auto_reply(max_replies: int = 5, dry_run: bool = False) -> dict:
 
     replies_sent = 0
     posts_checked = 0
+    auth_blocked = False
 
     for post in my_posts:
-        if replies_sent >= max_replies:
+        if replies_sent >= max_replies or auth_blocked:
             break
 
         post_id = post.get("id") or post.get("_id")
@@ -385,6 +401,12 @@ async def auto_reply(max_replies: int = 5, dry_run: bool = False) -> dict:
 
                 if result:
                     log.info(f"    ✅ Reply sent!")
+                elif is_auth_blocked(result):
+                    log.warning(
+                        f"    ⚠️ Replying stopped: Moltbook auth blocked ({auth_block_reason(result)})"
+                    )
+                    auth_blocked = True
+                    break
                 else:
                     log.warning(f"    ⚠️ Reply failed")
                 await asyncio.sleep(3)  # Rate limit between replies

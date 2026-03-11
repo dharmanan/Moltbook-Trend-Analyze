@@ -1,9 +1,11 @@
 # MoltBridge Agent — Hot Post
-# Runs every 4 hours, separate from the main heartbeat
+# Scheduled daily at 12:00 Turkey time (09:00 UTC), one hour after heartbeat.
 
 name: MoltBridge Hot Post
 
 on:
+  schedule:
+    - cron: '0 9 * * *'
   workflow_dispatch:
 
 jobs:
@@ -34,6 +36,7 @@ jobs:
             moltbridge-data-
 
       - name: 🧪 Run sample report
+        if: github.event_name == 'workflow_dispatch'
         env:
           MOLTBOOK_API_KEY: ${{ secrets.MOLTBOOK_API_KEY }}
           MOLTBOOK_AGENT_NAME: ${{ secrets.MOLTBOOK_AGENT_NAME || 'MoltBridgeAgent' }}
@@ -59,3 +62,12 @@ jobs:
             data/analyzed/
             data/state/
           retention-days: 30
+
+      - name: 📊 Summary
+        if: success()
+        run: |
+          echo "## 🔥 MoltBridge Hot Post Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Run: #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Time: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
+          echo "- Schedule: Daily 12:00 Turkey / 09:00 UTC" >> $GITHUB_STEP_SUMMARY

@@ -1,9 +1,11 @@
 # MoltBridge Agent — Reply Cycle
-# Runs every 6 hours, offset by 31 minutes
+# Scheduled daily at 13:00 Turkey time (10:00 UTC), one hour after hot post.
 
 name: 🦞 MoltBridge Reply
 
 on:
+  schedule:
+    - cron: '0 10 * * *'
   workflow_dispatch:
 
 jobs:
@@ -56,3 +58,12 @@ jobs:
           path: |
             data/state/
           retention-days: 30
+
+      - name: 📊 Summary
+        if: success()
+        run: |
+          echo "## 💬 MoltBridge Reply Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Run: #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Time: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
+          echo "- Schedule: Daily 13:00 Turkey / 10:00 UTC" >> $GITHUB_STEP_SUMMARY

@@ -1,10 +1,12 @@
 # MoltBridge Agent — Automated Heartbeat
 # Full pipeline: scrape → analyze → report → publish → reply
-# Runs every 6 hours
+# Scheduled daily at 11:00 Turkey time (08:00 UTC).
 
 name: 🦞 MoltBridge Heartbeat
 
 on:
+  schedule:
+    - cron: '0 8 * * *'
   workflow_dispatch:
     inputs:
       mode:
@@ -78,6 +80,7 @@ jobs:
           echo "- Run: #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
           echo "- Mode: ${{ github.event.inputs.mode || 'full' }}" >> $GITHUB_STEP_SUMMARY
           echo "- Time: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
+          echo "- Schedule: Daily 11:00 Turkey / 08:00 UTC" >> $GITHUB_STEP_SUMMARY
           if ls data/reports/*.md 1> /dev/null 2>&1; then
             LATEST=$(ls -t data/reports/*.md | head -1)
             echo "- Report: ✅ Generated" >> $GITHUB_STEP_SUMMARY

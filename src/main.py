@@ -40,6 +40,9 @@ from scrapers.moltbook_scraper import (
     get_me,
     check_auth_status,
     create_post,
+    auth_block_reason,
+    get_auth_block_status,
+    is_auth_blocked,
 )
 from analyzers.trend_analyzer import run_full_analysis, select_top_posts
 from analyzers.sentiment_analyzer import analyze_sentiment
@@ -137,6 +140,11 @@ async def cmd_publish():
         log.error("No analysis data found. Run --analyze first.")
         return None
 
+    auth_block = await get_auth_block_status()
+    if auth_block:
+        log.warning(f"⚠️ Publish skipped: Moltbook auth blocked ({auth_block_reason(auth_block)})")
+        return auth_block
+
     sentiment = analysis.get("sentiment", {})
     result = await publish_report(analysis, sentiment)
     return result
@@ -147,6 +155,12 @@ async def cmd_reply(dry_run: bool = False):
     log.info("=" * 50)
     log.info(f"💬 MOLTBRIDGE — AUTO-REPLY MODE {'(DRY RUN)' if dry_run else ''}")
     log.info("=" * 50)
+
+    if not dry_run:
+        auth_block = await get_auth_block_status()
+        if auth_block:
+            log.warning(f"⚠️ Reply skipped: Moltbook auth blocked ({auth_block_reason(auth_block)})")
+            return auth_block
 
     result = await auto_reply(max_replies=5, dry_run=dry_run)
     return result
@@ -177,18 +191,30 @@ async def cmd_full():
     # Step 4: Publish
     api_key = os.getenv("MOLTBOOK_API_KEY", "")
     published = False
+    auth_block = None
     if api_key:
-        result = await publish_report(analysis, sentiment)
-        if result and result.get("success"):
-            published = True
-            log.info("📤 Report published to Moltbook")
+        auth_block = await get_auth_block_status()
+        if auth_block:
+            log.warning(
+                f"⚠️ Publish/comment flows skipped: Moltbook auth blocked ({auth_block_reason(auth_block)})"
+            )
         else:
-            log.warning("⚠️ Publish failed (rate limit or other issue). Report saved locally.")
+            result = await publish_report(analysis, sentiment)
+            if result and result.get("success"):
+                published = True
+                log.info("📤 Report published to Moltbook")
+            elif is_auth_blocked(result):
+                auth_block = result
+                log.warning(
+                    f"⚠️ Publish/comment flows skipped: Moltbook auth blocked ({auth_block_reason(result)})"
+                )
+            else:
+                log.warning("⚠️ Publish failed (rate limit or other issue). Report saved locally.")
     else:
         log.warning("⚠️ MOLTBOOK_API_KEY not set. Skipping publish.")
 
     # Step 5: Proactive commenting on other agents' posts
-    if api_key and analysis:
+    if api_key and analysis and not auth_block:
         log.info("🗣️ Commenting on trending posts...")
         await asyncio.sleep(2)
         try:
@@ -253,10 +279,10 @@ async def cmd_hot_post(dry_run: bool = False):
             log.warning("⚠️ MOLTBOOK_API_KEY not set. Skipping hot post.")
             return None
 
-        auth_status = await check_auth_status()
-        if auth_status == 401:
-            log.warning("⚠️ Account unauthorized (401). Skipping hot post flow.")
-            return None
+        auth_block = await get_auth_block_status()
+        if auth_block:
+            log.warning(f"⚠️ Hot post skipped: Moltbook auth blocked ({auth_block_reason(auth_block)})")
+            return auth_block
 
     settings_path = os.path.join(os.path.dirname(__file__), "..", "config", "settings.json")
     with open(settings_path, "r") as f:
@@ -567,8 +593,14 @@ async def cmd_heartbeat():
                     f"Next run in {remaining}. Skipping."
                 )
                 # Still do auto-reply even if skipping scrape
-                log.info("💬 Running auto-reply anyway...")
-                await auto_reply(max_replies=3, dry_run=False)
+                auth_block = await get_auth_block_status()
+                if auth_block:
+                    log.warning(
+                        f"⚠️ Auto-reply skipped during heartbeat: Moltbook auth blocked ({auth_block_reason(auth_block)})"
+                    )
+                else:
+                    log.info("💬 Running auto-reply anyway...")
+                    await auto_reply(max_replies=3, dry_run=False)
                 return
         except (ValueError, TypeError):
             pass
