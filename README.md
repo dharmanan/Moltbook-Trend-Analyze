@@ -20,8 +20,6 @@ MoltBridge monitors Moltbook trends, analyzes what agents are discussing, and pu
 
 ## Quick Start
 
-### Quick Start
-
 1. Fork this repo
 2. Open the repo
 3. In the terminal:
@@ -57,20 +55,25 @@ python src/main.py --full
 | `--hot-post-dry` | Preview a hot post summary |
 | `--engage` | Comment on trending posts |
 | `--engage-dry` | Preview engagement (dry run) |
-| `--full` | scrape → analyze → report → publish |
+| `--full` | scrape → analyze → report → publish → proactive comment |
 | `--register-moltbook` | Register on Moltbook |
 | `--generate-8004` | Generate ERC-8004 registration JSON |
 | `--register-8004 ADDR` | Register on ERC-8004 |
 | `--status` | Show agent status |
 | `--heartbeat` | Heartbeat cycle |
+| `--sample-report` | Generate a sample report with expanded scrape limits |
 
 ## Automation (GitHub Actions)
 
-Two workflows run on schedule (UTC):
+Three workflows run on schedule:
 
-- **🦞 MoltBridge Heartbeat**: every 6 hours at `00:00, 06:00, 12:00, 18:00`
-- **🦞 MoltBridge Reply**: every 6 hours at `00:31, 06:31, 12:31, 18:31` (reply + follow commenters)
-- **MoltBridge Hot Post**: every 4 hours at `01:29, 05:29, 09:29, 13:29, 17:29, 21:29` (sample report + hot post summary)
+- **🦞 MoltBridge Heartbeat**: daily at `08:00 UTC` / `11:00 Turkey time`
+- **MoltBridge Hot Post**: daily at `09:00 UTC` / `12:00 Turkey time`
+- **🦞 MoltBridge Reply**: daily at `10:00 UTC` / `13:00 Turkey time` (reply + follow commenters)
+
+Notes:
+- Scheduled hot-post runs publish only the hot post summary.
+- The sample report step runs only on manual `workflow_dispatch` runs.
 
 ## Recent Changes
 
@@ -95,14 +98,16 @@ If `GROQ_API_KEY` is missing, the system falls back to templates and skips LLM s
 
 - LLM upgrades: Added Groq-powered replies, proactive comments, and report summaries to reduce duplicate phrasing and improve quality.
 - Safety controls: Added reply/comment deduplication signatures and reduced proactive comment volume to avoid repeat-triggered suspensions.
+- Auth guards: Publish, reply, proactive comment, hot-post, and follow flows now skip safely when the Moltbook account is suspended or unauthorized.
 - Visibility: Added LLM usage logs so Actions runs clearly show when LLM output is used.
 - Report quality: Added top-conversations section based on last 6 hours with a score of upvotes + 2*comments to surface what is most discussed.
 - Submolt selection: Switched to dynamic submolt feeds based on recent activity and minimum post thresholds, with fallback to the static list if none qualify.
-- Separate hot post workflow: Added a 4-hour sample report with expanded scrape limits and sample note, keeping the main heartbeat report unchanged.
+- Separate hot post workflow: Added a sample report with expanded scrape limits and sample note for manual runs, keeping the main heartbeat report unchanged.
 
 Secrets to add:
 
 - `MOLTBOOK_API_KEY`
+- `GROQ_API_KEY` (optional, for LLM summaries and less repetitive replies/comments)
 - `ETH_PRIVATE_KEY` (optional, for ERC-8004)
 - `ETH_RPC_URL` (optional)
 
@@ -121,16 +126,11 @@ python src/main.py --generate-8004
 python src/main.py --register-8004 <registry_address>
 ```
 
-If the URL changes later, update it with:
-
-```bash
-AGENT_URI="<public_url>" ERC8004_AGENT_ID=<id> python src/main.py --set-agent-uri <registry_address>
-```
-
 ## Security Notes
 
 - Keep `.env` local only; never commit it.
 - Use GitHub Secrets for API keys.
+- The tracked `data/agent_registration.json` file is public registration metadata, not a secret store.
 - Rotate keys if they ever leak.
 
 ## License

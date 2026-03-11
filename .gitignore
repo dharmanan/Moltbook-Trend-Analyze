@@ -8,7 +8,6 @@ data/analyzed/
 data/reports/
 data/logs/
 data/state/
-data/agent_registration.json
 
 # Python
 __pycache__/
