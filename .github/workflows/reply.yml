@@ -1,11 +1,11 @@
 # MoltBridge Agent — Reply Cycle
-# Scheduled daily at 13:00 Turkey time (10:00 UTC), one hour after hot post.
+# Scheduled daily at 14:00 Turkey time (11:00 UTC), one hour after hot post.
 
 name: 🦞 MoltBridge Reply
 
 on:
   schedule:
-    - cron: '0 10 * * *'
+    - cron: '0 11 * * *'
   workflow_dispatch:
 
 jobs:
@@ -66,4 +66,4 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- Run: #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
           echo "- Time: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
-          echo "- Schedule: Daily 13:00 Turkey / 10:00 UTC" >> $GITHUB_STEP_SUMMARY
+          echo "- Schedule: Daily 14:00 Turkey / 11:00 UTC" >> $GITHUB_STEP_SUMMARY
