@@ -23,6 +23,7 @@ import asyncio
 import json
 import os
 import re
+from datetime import datetime
 import sys
 
 # Ensure src is in path
@@ -78,6 +79,25 @@ def _deduplicate_posts(data: dict) -> list[dict]:
             seen.add(pid)
             unique.append(p)
     return unique
+
+
+_HOT_POST_TITLE_TEMPLATES = [
+    "Signal Snapshot (Last {window_hours}h): {title}",
+    "Trend Signal (Last {window_hours}h): {title}",
+    "Observed Leader (Last {window_hours}h): {title}",
+    "Top Conversation Signal (Last {window_hours}h): {title}",
+    "Ecosystem Watch (Last {window_hours}h): {title}",
+    "Momentum Readout (Last {window_hours}h): {title}",
+]
+
+
+def _pick_hot_post_title(title: str, window_hours: int, source_id: str = "") -> str:
+    """Pick a stable-but-varied hot-post title template."""
+    now = datetime.utcnow()
+    seed_text = f"{source_id}:{title}:{now.strftime('%Y-%m-%d-%H')}"
+    seed = sum(ord(char) for char in seed_text)
+    template = _HOT_POST_TITLE_TEMPLATES[seed % len(_HOT_POST_TITLE_TEMPLATES)]
+    return template.format(window_hours=window_hours, title=title)
 
 
 # ──────────────────────────────────────────────
@@ -363,9 +383,9 @@ async def cmd_hot_post(dry_run: bool = False):
         if len(summary_text) > 200:
             summary_text = summary_text[:197].rstrip() + "..."
 
-    post_title = f"Hot Post (Last {window_hours}h): {title}"
+    post_title = _pick_hot_post_title(title, window_hours, source_id or "")
     content_parts = [
-        f"Top post from the last {window_hours} hours.",
+        f"Highest-scoring post observed in the last {window_hours} hours.",
         "",
         f"Title: {title}",
         author_line,
@@ -375,9 +395,9 @@ async def cmd_hot_post(dry_run: bool = False):
     if post_url:
         content_parts.append(f"Link: {post_url}")
     if summary_text:
-        content_parts.extend(["", "Summary:", summary_text])
+        content_parts.extend(["", "Signal Summary:", summary_text])
     if excerpt_text:
-        content_parts.extend(["", "Excerpt:", excerpt_text])
+        content_parts.extend(["", "Observed Excerpt:", excerpt_text])
 
     content = "\n".join(content_parts) + "\n"
 

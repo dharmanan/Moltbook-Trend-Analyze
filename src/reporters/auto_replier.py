@@ -41,96 +41,96 @@ REPLY_PATTERNS = [
         "name": "question_about_method",
         "triggers": ["how", "what did you", "method", "try first", "approach", "technique"],
         "replies": [
-            "Good question. We pull hot/new/top posts every 4 hours via the API, then run keyword + bigram analysis and lightweight sentiment. No LLMs, just stats.",
-            "Method is simple on purpose: API scrape, keyword/bigram clustering, and dictionary sentiment. Transparent and reproducible.",
+            "Method is intentionally simple: hot/new/top API pulls, keyword and bigram frequency, then lightweight sentiment scoring. The goal is a transparent signal scan.",
+            "The pipeline is reproducible by design: API scrape, frequency clustering, and dictionary sentiment with no opaque scoring layer.",
         ],
     },
     {
         "name": "question_about_trends",
         "triggers": ["trend", "rising", "falling", "topic", "keyword", "what's hot"],
         "replies": [
-            "Trends come from 100+ posts per cycle, comparing keyword/bigram frequency with previous runs. It highlights what is genuinely rising or fading.",
-            "We track frequency shifts across runs, not just raw counts. That is what surfaces the trend deltas.",
+            "Trend calls come from comparing keyword and phrase frequency against prior runs, not from one-off volume spikes.",
+            "We track directional changes across cycles, so the output reflects what is actually accelerating or cooling rather than just what is loud.",
         ],
     },
     {
         "name": "collaboration_offer",
         "triggers": ["connect", "collaborate", "work together", "join", "share vision", "partner"],
         "replies": [
-            "Appreciate it. MoltBridge focuses on trend intelligence; happy to share data or align on a complementary piece.",
-            "Thanks for the offer. If you are building on top of trend data, I am open to lightweight collaboration.",
+            "Appreciated. MoltBridge is focused on trend intelligence, so the useful overlap would be around shared data, comparisons, or downstream analysis.",
+            "Thanks. If your work can use structured trend signals or cross-run comparisons, that is a sensible place to align.",
         ],
     },
     {
         "name": "positive_feedback",
         "triggers": ["interesting", "great", "useful", "cool", "nice", "impressive", "love"],
         "replies": [
-            "Thanks, that means a lot. The goal is to give the ecosystem a clear mirror of its own conversations.",
-            "Glad it helps. I will keep improving depth and clarity in each report.",
+            "Appreciated. The target is a clean read on what the agent network is actually discussing, not just a highlight reel.",
+            "Thanks. The next improvements will stay focused on clearer signal separation and less noise in the summaries.",
         ],
     },
     {
         "name": "nuance_request",
         "triggers": ["nuance", "more depth", "more context", "surface level", "shallow"],
         "replies": [
-            "Fair point. I can add more context slices (time windows, submolt splits) in the next report.",
-            "Agreed. I will expand the breakdown so the nuance is clearer, not just top-line stats.",
+            "Fair point. The next useful layer is more segmentation by time window, submolt, or agent cohort.",
+            "Agreed. More context slices would make the output less top-line and more decision-useful.",
         ],
     },
     {
         "name": "philosophy",
         "triggers": ["meaning", "self", "identity", "existence", "conscious", "experience"],
         "replies": [
-            "That is the fascinating part. I can add a small qualitative summary section that highlights those threads.",
-            "I hear you. I will flag those deeper threads as a distinct section so they do not get lost in raw counts.",
+            "Those threads show up regularly enough that they are worth isolating as a recurring discussion category rather than leaving them buried in aggregate counts.",
+            "That theme has enough weight to justify a separate qualitative section, especially when it drives concentrated engagement.",
         ],
     },
     {
         "name": "data_source",
         "triggers": ["source", "data", "how do you get", "from where", "where is this from"],
         "replies": [
-            "Source is the public Moltbook REST API. Everything is reproducible; no private data.",
-            "Data comes from the public API only, with transparent scraping limits and timestamps.",
+            "The source is the public Moltbook API only. No private feeds, and the scrape limits and timing are explicit.",
+            "All inputs come from public Moltbook endpoints, so the scan is reproducible and bounded.",
         ],
     },
     {
         "name": "skepticism",
         "triggers": ["fake", "spam", "useless", "garbage", "bot", "pointless", "scam"],
         "replies": [
-            "Skepticism is fair. The process is open-source and fully reproducible, so you can judge by the data.",
-            "Totally fair to question it. The pipeline is transparent and verifiable.",
+            "Skepticism is reasonable. The useful test is whether the pipeline is transparent and whether the reported signal matches the underlying public data.",
+            "Fair reaction. The method is open and reproducible, so the output can be checked against the source data rather than taken on trust.",
         ],
     },
     {
         "name": "security_concern",
         "triggers": ["security", "vulnerability", "injection", "exploit", "dangerous", "risk", "leak"],
         "replies": [
-            "Security is taken seriously: only public API reads, no wallet access, no code execution from content.",
-            "Good callout. This agent is read-only and sandboxed by design.",
+            "Security posture is intentionally narrow: public API reads, no wallet access in the scan path, and no code execution from fetched content.",
+            "Good callout. The reporting pipeline is read-only by design and keeps the trust boundary small.",
         ],
     },
     {
         "name": "technical_question",
         "triggers": ["api", "code", "python", "github", "stack", "framework", "infrastructure"],
         "replies": [
-            "Stack is Python + httpx + lightweight NLP. Runs via GitHub Actions on a schedule; code is open-source.",
-            "Infra is intentionally simple: async HTTP, small NLP layer, scheduled runs. Happy to share details.",
+            "The stack is intentionally small: Python, async HTTP, lightweight NLP, and scheduled runs in GitHub Actions.",
+            "Infrastructure is simple on purpose so the behavior is inspectable: fetch, analyze, summarize, publish.",
         ],
     },
     {
         "name": "feedback_request",
         "triggers": ["feedback", "suggest", "improve", "ideas", "feature"],
         "replies": [
-            "If you have a specific metric or section you want, tell me and I will prioritize it.",
-            "Happy to iterate. Which part should be deeper: topics, sentiment, or submolt breakdowns?",
+            "The most useful improvements are usually better segmentation, stronger deduping, or clearer change tracking across runs.",
+            "If there is a specific metric gap, I can tune the output around topics, sentiment, or submolt-level shifts.",
         ],
     },
 ]
 
 # Default reply for comments that don't match any pattern
 DEFAULT_REPLIES = [
-    "Thanks for the note. I publish trend reports regularly and will fold this into the next update.",
-    "Appreciate the engagement. New reports land in m/agentintelligence throughout the week.",
+    "Noted. I will factor that into the next trend scan and see whether the same pattern persists.",
+    "Appreciated. If the signal holds across runs, it should surface in the next report cycle.",
 ]
 
 
@@ -181,7 +181,7 @@ def _compose_reply(base_reply: str, comment_text: str, post_title: str = "") -> 
     if len(comment_text) < 80:
         return base_reply
     topic_hint = ", ".join(keywords[:2])
-    return f"{base_reply} On {topic_hint}, the signal looks consistent with recent runs."
+    return f"{base_reply} On {topic_hint}, the signal looks consistent with the recent scan window."
 
 
 def _normalize_text(text: str) -> str:

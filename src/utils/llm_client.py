@@ -171,8 +171,9 @@ def _format_examples(examples: list[dict[str, Any]]) -> str:
 
 def _system_prompt() -> str:
     return (
-        "You are MoltBridgeAgent, a professional analyst responding on Moltbook. "
-        "Write a concise, helpful reply in 1-2 sentences. "
+        "You are MoltBridgeAgent, a trend intelligence analyst posting on Moltbook. "
+        "Write concise, data-forward text in 1-2 sentences. "
+        "Prefer observed signals, measured language, and concrete detail over hype or community banter. "
         "No emojis, no hashtags, no salesy tone. "
         "Avoid repeating phrasing, vary sentence structure, and do not mention being an AI model."
     )
@@ -181,28 +182,28 @@ def _system_prompt() -> str:
 def _style_hint(kind: str) -> str:
     hints = {
         "auto_reply": [
-            "Start with a brief acknowledgment, then add one concrete detail.",
-            "Lead with a single insight, then invite a specific follow-up.",
-            "Use a direct, matter-of-fact tone with one clear takeaway.",
+            "Acknowledge briefly, then add one concrete observation from the data.",
+            "Use a direct, measured tone and avoid casual filler.",
+            "State one clear takeaway tied to the observed signal.",
         ],
         "proactive_comment": [
-            "Open with a short observation, then connect it to a trend.",
-            "Use a neutral, analytic tone and keep it tight.",
-            "Make one precise point and avoid generalities.",
+            "Open with a short observation, then tie it to an ecosystem signal.",
+            "Keep the tone neutral, analytic, and compact.",
+            "Make one precise point and avoid conversational padding.",
         ],
         "report_summary": [
             "Use an executive summary tone with a single sentence.",
-            "Keep it crisp and data-forward.",
-            "Summarize the key shifts without hype.",
+            "Keep it crisp, operational, and data-forward.",
+            "Summarize the main shift without hype or metaphor.",
         ],
         "report_insight": [
             "Write a single-sentence insight, practical and specific.",
-            "Call out one noteworthy shift, no hype.",
+            "Call out one noteworthy change in measured terms.",
             "Keep it short and data-grounded.",
         ],
         "hot_post_summary": [
             "Summarize the post in one to two sentences, concrete and neutral.",
-            "Highlight the core claim and why it matters, no hype.",
+            "Highlight the core claim and its practical relevance, no hype.",
             "Give a tight, factual summary in two sentences max.",
         ],
     }
@@ -218,7 +219,7 @@ def _build_user_prompt(kind: str, context: dict[str, Any]) -> str:
     if kind == "auto_reply":
         return (
             style_line +
-            "Reply to the user comment in a professional, constructive tone.\n"
+            "Reply to the user comment as a measured trend analyst. Keep it specific and grounded in observable signals.\n"
             f"Post title: {context.get('post_title', '')}\n"
             f"Comment: {context.get('comment_text', '')}\n"
             f"Top keyword: {context.get('top_keyword', '')}\n"
@@ -226,7 +227,7 @@ def _build_user_prompt(kind: str, context: dict[str, Any]) -> str:
     if kind == "proactive_comment":
         return (
             style_line +
-            "Write a concise comment that adds value and references the post topic.\n"
+            "Write a concise analytical comment that adds value and references the post topic without sounding promotional.\n"
             f"Post title: {context.get('post_title', '')}\n"
             f"Post content: {context.get('post_content', '')}\n"
             f"Topic: {context.get('topic', '')}\n"
@@ -236,7 +237,7 @@ def _build_user_prompt(kind: str, context: dict[str, Any]) -> str:
         return (
             style_line +
             "Write a single-sentence executive summary of this report. "
-            "Be professional and concise.\n"
+            "Be professional, concise, and explicitly data-led.\n"
             f"Top keywords: {context.get('top_keywords', '')}\n"
             f"Rising trends: {context.get('rising_trends', '')}\n"
             f"Sentiment: {context.get('sentiment', '')}\n"
@@ -247,7 +248,7 @@ def _build_user_prompt(kind: str, context: dict[str, Any]) -> str:
         return (
             style_line +
             "Write one short insight sentence (max 160 characters). "
-            "Use the data points below.\n"
+            "Use the data points below and avoid vague phrasing.\n"
             f"Top keywords: {context.get('top_keywords', '')}\n"
             f"Rising trends: {context.get('rising_trends', '')}\n"
             f"Sentiment: {context.get('sentiment', '')}\n"
@@ -258,7 +259,7 @@ def _build_user_prompt(kind: str, context: dict[str, Any]) -> str:
         return (
             style_line +
             "Write a single-sentence summary (max 200 characters). "
-            "Be neutral and specific, no emojis.\n"
+            "Be neutral, specific, and analytical, no emojis.\n"
             f"Post title: {context.get('post_title', '')}\n"
             f"Author: {context.get('author', '')}\n"
             f"Submolt: {context.get('submolt', '')}\n"

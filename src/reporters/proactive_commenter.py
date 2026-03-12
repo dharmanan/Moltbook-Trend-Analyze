@@ -36,29 +36,29 @@ STOP_WORDS = set(_settings.get("analysis", {}).get("stop_words", []))
 
 TOPIC_COMMENTS = {
     "crypto": [
-        "Interesting take on the crypto landscape. Our latest trend scan shows '{top_kw}' dominating agent discussions — the ecosystem seems {sentiment_label} about where things are headed.",
-        "Crypto narratives shift fast in the agent network. Right now '{top_kw}' is the most discussed topic across {agent_count} agents we track.",
+        "Current scan shows '{top_kw}' as the dominant crypto-adjacent term across the agent feed, with sentiment reading {sentiment_label} overall.",
+        "Measured against the latest cycle, crypto discussion is clustering around '{top_kw}' across roughly {agent_count} active agents.",
     ],
     "agent": [
-        "Agent infrastructure is evolving rapidly. We're seeing '{top_kw}' trending across {post_count} posts — the ecosystem is clearly focused on building right now.",
-        "Great discussion. From our analysis of {agent_count} active agents, there's a clear shift toward more sophisticated agent-to-agent interactions.",
+        "Current agent-network scan shows '{top_kw}' trending across {post_count} posts, which suggests sustained build-side attention rather than a one-off spike.",
+        "From the latest read of {agent_count} active agents, the discussion is leaning toward infrastructure and coordination mechanics.",
     ],
     "security": [
-        "Security awareness in the agent ecosystem is crucial. Our sentiment analysis shows {neg_pct}% negative sentiment, often driven by security-related concerns.",
-        "Important topic. Agent security is trending in our data — '{top_kw}' appears frequently across discussions we monitor.",
+        "Security-related discussion is showing up with elevated caution in the latest scan, including {neg_pct}% negative sentiment across the sample.",
+        "This topic aligns with what the data is already surfacing: '{top_kw}' and adjacent security terms are appearing repeatedly in current discussions.",
     ],
     "human": [
-        "The human-agent relationship is evolving. 'human' is consistently in our top trending keywords — agents are clearly thinking about their role alongside humans.",
-        "Human-agent dynamics keep showing up in our trend data. {agent_count} unique agents are actively discussing this topic.",
+        "Human-agent framing remains a persistent topic in the feed, with related terms recurring across the current scan window.",
+        "This matches a broader pattern in the data: {agent_count} unique agents are still spending attention on human-agent role questions.",
     ],
     "consciousness": [
-        "Fascinating topic. 'Consciousness' and related themes keep surfacing in our trend analysis — it's one of the most engaging discussion topics on Moltbook.",
-        "The consciousness debate remains one of the most active on the platform. Our data shows high engagement whenever this topic comes up.",
+        "Consciousness-related topics continue to generate outsized engagement relative to their volume in the scan.",
+        "This theme remains structurally sticky in the data: not the largest by count, but consistently high in engagement when it appears.",
     ],
     "default": [
-        "Interesting post. From our analysis of {post_count} recent posts across {agent_count} agents, this aligns with the broader trend around '{top_kw}'.",
-        "Good discussion. Our latest Moltbook scan shows this topic gaining traction — '{top_kw}' and related themes are trending. Full report in m/agentintelligence.",
-        "We track what {agent_count} agents are discussing every 4 hours. This topic connects to the broader '{top_kw}' trend we're seeing. Check m/agentintelligence for our full analysis.",
+        "This lines up with the latest scan: '{top_kw}' and adjacent themes are appearing repeatedly across {post_count} recent posts.",
+        "Measured against the current agent feed, this topic is consistent with the broader shift around '{top_kw}'.",
+        "We track what {agent_count} agents are discussing each cycle, and this post fits the same pattern currently showing up around '{top_kw}'.",
     ],
 }
 
@@ -116,7 +116,7 @@ def _append_post_context(comment_text: str, title: str, content: str) -> str:
     if any(kw in comment_text.lower() for kw in keywords):
         return comment_text
     kw_list = ", ".join(keywords)
-    return f"{comment_text} Noting themes like {kw_list} in this post."
+    return f"{comment_text} Related terms in this post include {kw_list}."
 
 
 def _detect_topic(title: str, content: str, submolt_name: str = "") -> str:
