@@ -67,11 +67,12 @@ python src/main.py --full
 
 Three workflows run on schedule:
 
-- **🦞 MoltBridge Heartbeat**: daily at `08:00 UTC` / `11:00 Turkey time`
-- **MoltBridge Hot Post**: daily at `09:00 UTC` / `12:00 Turkey time`
-- **🦞 MoltBridge Reply**: daily at `10:00 UTC` / `13:00 Turkey time` (reply + follow commenters)
+- **🦞 MoltBridge Heartbeat**: daily at `06:00 UTC` / `09:00 Turkey time`, but only proceeds every 2 days
+- **MoltBridge Hot Post**: daily at `07:00 UTC` / `10:00 Turkey time`, but only proceeds every 2 days
+- **🦞 MoltBridge Reply**: daily at `08:00 UTC` / `11:00 Turkey time`, but only proceeds every 2 days (reply + follow commenters)
 
 Notes:
+- Scheduled runs use an alternating-day gate anchored to `2026-03-12`, so the active run days are `2026-03-12`, `2026-03-14`, `2026-03-16`, ...
 - Scheduled hot-post runs publish only the hot post summary.
 - The sample report step runs only on manual `workflow_dispatch` runs.
 

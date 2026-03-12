@@ -1,32 +1,60 @@
 # MoltBridge Agent — Hot Post
-# Scheduled daily at 12:00 Turkey time (09:00 UTC), one hour after heartbeat.
+# Scheduled daily at 10:00 Turkey time (07:00 UTC) with an every-other-day gate, one hour after heartbeat.
 
 name: MoltBridge Hot Post
 
 on:
   schedule:
-    - cron: '0 9 * * *'
+    - cron: '0 7 * * *'
   workflow_dispatch:
 
 jobs:
   hot-post:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      SCHEDULE_ANCHOR_DATE: '2026-03-12'
 
     steps:
+      - name: 🗓️ Schedule gate
+        id: schedule_gate
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "reason=manual" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          today_epoch=$(date -u -d "$(date -u +%F)" +%s)
+          anchor_epoch=$(date -u -d "$SCHEDULE_ANCHOR_DATE" +%s)
+          days_since_anchor=$(((today_epoch - anchor_epoch) / 86400))
+
+          if (( days_since_anchor % 2 == 0 )); then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "reason=scheduled-run-day" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "reason=scheduled-skip-day" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: 📥 Checkout
+        if: steps.schedule_gate.outputs.should_run == 'true'
         uses: actions/checkout@v4
 
       - name: 🐍 Setup Python
+        if: steps.schedule_gate.outputs.should_run == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
 
       - name: 📦 Install dependencies
+        if: steps.schedule_gate.outputs.should_run == 'true'
         run: pip install -r requirements.txt
 
       - name: 📂 Restore data cache
+        if: steps.schedule_gate.outputs.should_run == 'true'
         uses: actions/cache@v4
         with:
           path: data/state/
@@ -36,7 +64,7 @@ jobs:
             moltbridge-data-
 
       - name: 🧪 Run sample report
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' && steps.schedule_gate.outputs.should_run == 'true'
         env:
           MOLTBOOK_API_KEY: ${{ secrets.MOLTBOOK_API_KEY }}
           MOLTBOOK_AGENT_NAME: ${{ secrets.MOLTBOOK_AGENT_NAME || 'MoltBridgeAgent' }}
@@ -45,6 +73,7 @@ jobs:
         run: python src/main.py --sample-report
 
       - name: 🔥 Run hot post
+        if: steps.schedule_gate.outputs.should_run == 'true'
         env:
           MOLTBOOK_API_KEY: ${{ secrets.MOLTBOOK_API_KEY }}
           MOLTBOOK_AGENT_NAME: ${{ secrets.MOLTBOOK_AGENT_NAME || 'MoltBridgeAgent' }}
@@ -52,8 +81,17 @@ jobs:
           LOG_LEVEL: INFO
         run: python src/main.py --hot-post
 
+      - name: ⏭️ Skip summary
+        if: steps.schedule_gate.outputs.should_run != 'true'
+        run: |
+          echo "## 🔥 MoltBridge Hot Post Skipped" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Reason: alternating-day schedule gate" >> $GITHUB_STEP_SUMMARY
+          echo "- Anchor date: $SCHEDULE_ANCHOR_DATE" >> $GITHUB_STEP_SUMMARY
+          echo "- Time: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
+
       - name: 💾 Save data
-        if: always()
+        if: always() && steps.schedule_gate.outputs.should_run == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: moltbridge-hot-post-${{ github.run_number }}
@@ -64,10 +102,10 @@ jobs:
           retention-days: 30
 
       - name: 📊 Summary
-        if: success()
+        if: success() && steps.schedule_gate.outputs.should_run == 'true'
         run: |
           echo "## 🔥 MoltBridge Hot Post Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- Run: #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
           echo "- Time: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
-          echo "- Schedule: Daily 12:00 Turkey / 09:00 UTC" >> $GITHUB_STEP_SUMMARY
+          echo "- Schedule: Daily 10:00 Turkey / 07:00 UTC with every-other-day gate" >> $GITHUB_STEP_SUMMARY

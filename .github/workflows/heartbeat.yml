@@ -1,12 +1,12 @@
 # MoltBridge Agent — Automated Heartbeat
 # Full pipeline: scrape → analyze → report → publish → reply
-# Scheduled daily at 11:00 Turkey time (08:00 UTC).
+# Scheduled daily at 09:00 Turkey time (06:00 UTC) with an every-other-day gate.
 
 name: 🦞 MoltBridge Heartbeat
 
 on:
   schedule:
-    - cron: '0 8 * * *'
+    - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
       mode:
@@ -25,21 +25,49 @@ jobs:
   heartbeat:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      SCHEDULE_ANCHOR_DATE: '2026-03-12'
 
     steps:
+      - name: 🗓️ Schedule gate
+        id: schedule_gate
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "reason=manual" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          today_epoch=$(date -u -d "$(date -u +%F)" +%s)
+          anchor_epoch=$(date -u -d "$SCHEDULE_ANCHOR_DATE" +%s)
+          days_since_anchor=$(((today_epoch - anchor_epoch) / 86400))
+
+          if (( days_since_anchor % 2 == 0 )); then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "reason=scheduled-run-day" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "reason=scheduled-skip-day" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: 📥 Checkout
+        if: steps.schedule_gate.outputs.should_run == 'true'
         uses: actions/checkout@v4
 
       - name: 🐍 Setup Python
+        if: steps.schedule_gate.outputs.should_run == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
 
       - name: 📦 Install dependencies
+        if: steps.schedule_gate.outputs.should_run == 'true'
         run: pip install -r requirements.txt
 
       - name: 📂 Restore data cache
+        if: steps.schedule_gate.outputs.should_run == 'true'
         uses: actions/cache@v4
         with:
           path: data/state/
@@ -49,6 +77,7 @@ jobs:
             moltbridge-data-
 
       - name: 🚀 Run agent
+        if: steps.schedule_gate.outputs.should_run == 'true'
         env:
           MOLTBOOK_API_KEY: ${{ secrets.MOLTBOOK_API_KEY }}
           MOLTBOOK_AGENT_NAME: ${{ secrets.MOLTBOOK_AGENT_NAME || 'MoltBridgeAgent' }}
@@ -61,8 +90,17 @@ jobs:
           echo "Running mode: $MODE"
           python src/main.py --$MODE
 
+      - name: ⏭️ Skip summary
+        if: steps.schedule_gate.outputs.should_run != 'true'
+        run: |
+          echo "## 🦞 MoltBridge Heartbeat Skipped" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Reason: alternating-day schedule gate" >> $GITHUB_STEP_SUMMARY
+          echo "- Anchor date: $SCHEDULE_ANCHOR_DATE" >> $GITHUB_STEP_SUMMARY
+          echo "- Time: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
+
       - name: 💾 Save data
-        if: always()
+        if: always() && steps.schedule_gate.outputs.should_run == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: moltbridge-data-${{ github.run_number }}
@@ -73,14 +111,14 @@ jobs:
           retention-days: 30
 
       - name: 📊 Summary
-        if: success()
+        if: success() && steps.schedule_gate.outputs.should_run == 'true'
         run: |
           echo "## 🦞 MoltBridge Heartbeat Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- Run: #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
           echo "- Mode: ${{ github.event.inputs.mode || 'full' }}" >> $GITHUB_STEP_SUMMARY
           echo "- Time: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
-          echo "- Schedule: Daily 11:00 Turkey / 08:00 UTC" >> $GITHUB_STEP_SUMMARY
+          echo "- Schedule: Daily 09:00 Turkey / 06:00 UTC with every-other-day gate" >> $GITHUB_STEP_SUMMARY
           if ls data/reports/*.md 1> /dev/null 2>&1; then
             LATEST=$(ls -t data/reports/*.md | head -1)
             echo "- Report: ✅ Generated" >> $GITHUB_STEP_SUMMARY
